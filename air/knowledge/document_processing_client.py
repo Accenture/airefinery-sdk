@@ -2,43 +2,25 @@
 Document processing client
 """
 
-import os
-import json
-import functools
 import base64
+import functools
+import json
 import logging
-from typing import Optional, List, Dict
+import os
+from typing import Dict, List, Union
 
 import requests
-from pydantic import BaseModel, Field
 
 from air import __base_url__, auth
-from air.distiller.distiller_client import string_check
-from air.api.vector_db import VectorDBRegistry, VectorDBConfig
-from air.knowledge.schema import Document
-from air.knowledge.pipeline import VectorDBUpload, VectorDBUploadConfig
-from air.knowledge.pipeline import EmbeddingConfig, Embedding
-from air.knowledge.pipeline import ChunkingRegistry, ChunkingConfig
-
+from air.api.vector_db import VectorDBRegistry
+from air.knowledge.pipeline import (
+    ChunkingRegistry,
+    Embedding,
+    VectorDBUpload,
+)
+from air.types import Document, DocumentProcessingConfig
 
 logger = logging.getLogger(__name__)
-
-
-class DocumentProcessingConfig(BaseModel):
-    """
-    Configuration for document processing
-    """
-
-    upload_config: VectorDBUploadConfig = Field(
-        default=VectorDBUploadConfig(), description="Vector DB upload configuration"
-    )
-    vectordb_config: VectorDBConfig = Field(..., description="Vector DB configuration")
-    embedding_config: EmbeddingConfig = Field(
-        ..., description="Embedding configuration"
-    )
-    chunking_config: ChunkingConfig = Field(
-        ..., description="Chunking parameter configuration"
-    )
 
 
 class DocumentProcessingClient:
@@ -51,21 +33,29 @@ class DocumentProcessingClient:
     parse_document_suffix = "inference/document-extract"
 
     def __init__(
-        self, *, base_url: str = "", doc_process_config: DocumentProcessingConfig
+        self,
+        *,
+        base_url: str = "",
     ) -> None:
         """
         Initialize the DocumentProcessingClient with authentication details.
 
         Args:
             base_url (str, optional): Base URL for the API. Defaults to "".
-            doc_process_config (DocumentProcessingConfig): configuration
         """
-        # Authenticate using provided account and API key
-        self.account = auth.account
-        string_check(self.account)
-
         # Use the provided base URL or the default one
         self.base_url = __base_url__ if base_url == "" else base_url
+
+    def create_project(self, doc_process_config: DocumentProcessingConfig):
+        """
+        Initializes and sets up a document proccesing project based on the provided configuration.
+
+        Args:
+            doc_process_config (DocumentProcessingConfig):  Configuration for the document processing
+
+        Raises:
+            ValueError: If the specified vector db type is not registered.
+        """
 
         # set up pipeline
         self.predifined_task_order = ["chunk", "embed", "upload"]
@@ -102,7 +92,9 @@ class DocumentProcessingClient:
             "upload": functools.partial(self.uploader.run),
         }
 
-    async def parse_document(self, *, file_path: str, model: str) -> dict:
+    def parse_document(
+        self, *, file_path: str, model: str, timeout: Union[int, None] = None
+    ) -> dict:
         """
         Extract text/(multimedia) from the given document using the specified
         knowledge-extraction model.
@@ -110,6 +102,8 @@ class DocumentProcessingClient:
         Args:
             file_path (str): local path of input file
             model (str): name of the knowledge extraction model to be used
+            timeout Union[int, None] (defaults to None): timeout of the document extraction call
+            in seconds, if set as None, default timeout configured for the model will be used.
 
         Returns:
             If success, return a dictionary of extracted document elements
@@ -151,13 +145,14 @@ class DocumentProcessingClient:
             "model": model,
             "file_type": file_type,
             "file_name": file_name,
+            "timeout": timeout,
         }
 
         # Prepare the headers with the API key for authentication
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {auth.get_access_token()}",
-            "airefinery_account": self.account,
+            "airefinery_account": auth.account,
         }
 
         # Determine the base URL

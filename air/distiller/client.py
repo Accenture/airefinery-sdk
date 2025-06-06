@@ -1,17 +1,21 @@
 import asyncio
-import re
 import json
+import os
+import re
 import traceback
 from importlib.metadata import version
-
 from typing import Any, Callable, Optional, cast
 
 import requests
 import websockets
 from omegaconf import OmegaConf
 
-from air import __base_url__, __version__, auth, PostgresAPI
-from air.distiller.executor import agent_class_to_executor
+from air import PostgresAPI, __base_url__, __version__, auth
+from air.distiller.executor import (
+    get_all_exeecutor_agents,
+    get_executor,
+)
+from air.distiller.pii_handler.pii_handler import PIIHandler
 from air.utils import async_input, async_print
 
 
@@ -41,7 +45,7 @@ def string_check(s) -> None:
     )
 
 
-class DistillerClient:
+class AsyncDistillerClient:
     """
     Distiller SDK for AI Refinery.
 
@@ -58,9 +62,9 @@ class DistillerClient:
     max_size_ws_recv = 167772160
     ping_interval = 10
 
-    def __init__(self, *, base_url: str = "") -> None:
+    def __init__(self, *, base_url: str = "", **kwargs) -> None:
         """
-        Initialize the DistillerClient with authentication details.
+        Initialize the AsyncDistillerClient with authentication details.
 
         Args:
             base_url (str, optional): Base URL for the API. Defaults to "".
@@ -95,6 +99,9 @@ class DistillerClient:
         # Initialize background tasks tracker
         self._wait_task_list = None
 
+        # PII Handler potion (useful to identify & mask/unmask sensitive information)
+        self.pii_handler = None
+
     def create_project(
         self,
         *,
@@ -119,7 +126,6 @@ class DistillerClient:
         if config_path:
             # Load the YAML configuration file
             yaml_config = OmegaConf.load(config_path)
-
             # Resolve the YAML config into a JSON format
             json_config = cast(dict, OmegaConf.to_container(yaml_config, resolve=True))
 
@@ -240,6 +246,8 @@ class DistillerClient:
                     self._last_ping_received = asyncio.get_event_loop().time()
                     continue
 
+                msg = await asyncio.to_thread(self.unmask_pii_if_needed, msg)
+
                 await self.receive_queue.put(msg)
 
         except asyncio.CancelledError:
@@ -268,12 +276,63 @@ class DistillerClient:
         except asyncio.CancelledError:
             pass
 
+    def mask_payload_if_needed(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """
+        Mask PII in payload if protection is enabled and payload contains a query.
+
+        Args:
+            payload: The payload to potentially mask
+
+        Returns:
+            The payload with PII masked if applicable
+        """
+        is_query = payload.get("request_type") == "query" or (
+            "request_args" in payload and "query" in payload["request_args"]
+        )
+
+        if self.pii_handler and self.pii_handler.is_enabled() and is_query:
+            original = payload["request_args"].get("query", "")
+            masked_query, metadata = self.pii_handler.mask_text(original)
+
+            payload["request_args"]["query"] = masked_query
+
+            if metadata:
+                self.pii_handler.extend_metadata(metadata)
+
+        return payload
+
+    def unmask_pii_if_needed(self, msg: dict) -> dict:
+        """
+        Unmask PII in message content if PII handler is enabled and content exists.
+
+        Args:
+            msg: The message dictionary to potentially unmask
+
+        Returns:
+            The message with PII unmasked if applicable
+        """
+        if self.pii_handler and self.pii_handler.is_enabled() and "content" in msg:
+            original_masked = msg["content"]
+            demasked = self.pii_handler.demask_text(
+                original_masked,
+                self.pii_handler.get_metadata(),
+            )
+            msg["content"] = demasked
+
+        return msg
+
     async def send(self, payload: dict[str, Any]) -> None:
         """
         Enqueue a payload to be sent over the established websocket connection.
+
+        Args:
+        payload (dict): The payload to send.
         """
+        # Apply PII masking if needed
+        masked_payload = self.mask_payload_if_needed(payload)
+
         assert self.send_queue
-        await self.send_queue.put(payload)
+        await self.send_queue.put(masked_payload)
 
     async def recv(self) -> dict[str, Any]:
         """
@@ -371,11 +430,24 @@ class DistillerClient:
                     "in future release. Please use executor_dict in the future."
                 )
 
+            # Load the latest project config for the user
+            project_config_dict = self.download_project(project, project_version)
+            if not project_config_dict:
+                raise ValueError("Project configuration could not be loaded.")
+
+            project_config = json.loads(json.loads(project_config_dict["config"]))
             self.initialize_executor(
                 project=project,
+                project_config=project_config,
                 project_version=project_version,
                 executor_dict=executor_dict,
             )
+            base_config = project_config.get("base_config", {})
+            pii_config = base_config.get("pii_masking", {})
+            if pii_config.get("enable", False):
+                self.pii_handler = PIIHandler()
+                self.pii_handler.enable()
+                self.pii_handler.load_runtime_overrides(project_config)
 
         except Exception as e:
             print(f"Failed to connect: {e}")
@@ -385,6 +457,7 @@ class DistillerClient:
     def initialize_executor(
         self,
         project: str,
+        project_config: Any,
         project_version: Optional[str] = None,
         executor_dict: Optional[dict[str, Callable | dict[str, Callable]]] = None,
     ):
@@ -395,13 +468,6 @@ class DistillerClient:
 
         # Reset the executors
         self.executor_dict = {}
-
-        # Load the latest project config for the user
-        project_config_dict = self.download_project(project, project_version)
-        if not project_config_dict:
-            raise ValueError("Project configuration could not be loaded.")
-
-        project_config = json.loads(json.loads(project_config_dict["config"]))
 
         # Walk through each utility config to ensure all the executors are properly initialized
         for u_cfg in project_config.get("utility_agents", []):
@@ -425,10 +491,11 @@ class DistillerClient:
                     # If agent_executor is already a dict, leave it unchanged
                     pass
 
-            if agent_class in agent_class_to_executor:
+            if agent_class in get_all_exeecutor_agents():
                 # This agent requires an executor
                 # Create the executor wrapper for the agent
-                self.executor_dict[agent_name] = agent_class_to_executor[agent_class](
+                self.executor_dict[agent_name] = get_executor(
+                    agent_class=agent_class,
                     func=executor_dict.get(agent_name, {}),
                     send_queue=self.send_queue,
                     account=self.account,
@@ -442,6 +509,9 @@ class DistillerClient:
         """
         Close the websocket connection and cancel background tasks.
         """
+        if self.pii_handler:
+            self.pii_handler.clear_mapping()
+            self.pii_handler.clear_metadata()
         tasks = [self._send_task, self._receive_task, self._ping_task]
         for task in tasks:
             if task:
@@ -558,7 +628,7 @@ class DistillerClient:
 
     async def query(self, query: str, image: Optional[str] = None, **kwargs):
         """
-        Send a query request to the websocket.
+        Send a query request to the websocket, with PII masked if enabled.
 
         Args:
             query (str): The query string.
@@ -585,9 +655,12 @@ class DistillerClient:
             The retrieved memory.
         """
         responses = self.request(request_type="memory/retrieve", request_args=kwargs)
+        content = ""
+
         async for response in responses:
             if response.get("role", None) == "memory":
-                return response.get("content", "")
+                content = response.get("content", "")
+        return content
 
     async def add_memory(self, **kwargs):
         """
@@ -751,7 +824,7 @@ class DistillerClient:
         return self._DistillerContextManager(self, **kwargs)
 
     class _DistillerContextManager:
-        def __init__(self, client: "DistillerClient", **kwargs):
+        def __init__(self, client: "AsyncDistillerClient", **kwargs):
             self.client = client
             self.kwargs = kwargs
 

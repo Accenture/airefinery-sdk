@@ -1,49 +1,27 @@
-import logging
 import concurrent.futures
+import logging
 from typing import List, Tuple
 
-from tqdm import tqdm
-from pydantic import BaseModel, Field
-from openai import OpenAI, AuthenticationError
+from requests.exceptions import HTTPError
 from tenacity import (
     retry,
+    retry_if_exception,
     stop_after_attempt,
-    retry_if_exception_type,
 )
+from tqdm import tqdm
 
-from air import auth, __base_url__
-from air.knowledge.schema import Document
+from air import __base_url__, auth
+from air.embeddings.client import EmbeddingsClient
+from air.types import ClientConfig, Document, EmbeddingConfig
 
 logger = logging.getLogger(__name__)
 
 
-class EmbeddingConfig(BaseModel):
+def is_unauthorized_error(exception):
     """
-    Embedding configuration class
+    Method to verify if exception is a 401 HTTP error
     """
-
-    model: str = Field(..., description="Name of the model to use for embedding")
-    batch_size: int = Field(
-        default=50, description="Number of rows in a batch per embedding request"
-    )
-    max_workers: int = Field(
-        default=8,
-        description="Number of parallel threads to spawn while creating embeddings",
-    )
-
-
-class ClientConfig(BaseModel):
-    """
-    Configuration for the OpenAI client.
-    """
-
-    base_url: str = Field(
-        default=__base_url__, description="Base URL for the OpenAI API"
-    )
-    api_key: str = Field(..., description="API key for authentication")
-    default_headers: dict = Field(
-        default_factory=dict, description="Default headers for API requests"
-    )
+    return isinstance(exception, HTTPError) and exception.response.status_code == 401
 
 
 class Embedding:
@@ -57,17 +35,17 @@ class Embedding:
         self.max_workers = embedding_config.max_workers
         self.base_url = base_url
         self.client_config = ClientConfig(**auth.openai(base_url=self.base_url))
-        self.client = OpenAI(**dict(self.client_config))
+        self.client = EmbeddingsClient(**dict(self.client_config))
 
     def refresh_client_access_token(self):
         """
         Refresh the access token for the OpenAI client.
         """
         self.client_config.api_key = auth.get_access_token()
-        self.client = OpenAI(**dict(self.client_config))
+        self.client = EmbeddingsClient(**dict(self.client_config))
 
     @retry(
-        retry=retry_if_exception_type(AuthenticationError),
+        retry=retry_if_exception(is_unauthorized_error),
         stop=stop_after_attempt(2),
     )
     def generate_embeddings(self, data: List[Document]) -> Tuple[List[Document], bool]:
@@ -77,18 +55,24 @@ class Embedding:
         status = True
         texts = [doc.elements[0].text for doc in data]
         try:
-            response = self.client.embeddings.create(input=texts, model=self.model)
-            if not getattr(response, "status_code", 200) == 200:
-                logger.error(
-                    "Embedding generation request failed with status code: %s",
-                    getattr(response, "status_code"),
-                )
-                return data, False
+            response = self.client.create(
+                input=texts,
+                model=self.model,
+                encoding_format="float",
+                extra_body={"input_type": "passage"},
+                extra_headers={"airefinery_account": auth.account},
+            )
             embeddings = [data.embedding for data in response.data]
             if None in embeddings:
                 status = False
             for idx, doc in enumerate(data):
                 doc.elements[0].text_vector = embeddings[idx]
+        except HTTPError as http_err:
+            logger.error(
+                "Embedding generation request failed due to HTTP error: %s",
+                http_err,
+            )
+            status = False
         except Exception as e:
             logger.error(
                 "An exception of type %s occurred: %s", type(e).__name__, str(e)

@@ -4,12 +4,19 @@ import asyncio
 import logging
 from typing import Any, Callable, Dict, Optional
 
-from azure.ai.projects import AIProjectClient
-from azure.identity import DefaultAzureCredential
-
 from air.distiller.executor.executor import Executor
 
 logger = logging.getLogger(__name__)
+
+try:
+    from azure.ai.projects import AIProjectClient
+    from azure.identity import DefaultAzureCredential
+except ImportError as exc:
+    logger.error(
+        "[Installation Failed] Missing Azure AI SDK dependencies. "
+        'Install with: pip install "airefinery-sdk[tah-azure-ai]"'
+    )
+    raise
 
 
 class AzureExecutor(Executor):
@@ -72,7 +79,7 @@ class AzureExecutor(Executor):
         try:
             # Initialize the Azure project client using the provided connection string
             # and default credentials.
-            self.project_client = AIProjectClient.from_connection_string(
+            self.project_client = AIProjectClient.from_connection_string(  # type: ignore[attr-defined]
                 credential=DefaultAzureCredential(),
                 conn_str=connection_string,
             )

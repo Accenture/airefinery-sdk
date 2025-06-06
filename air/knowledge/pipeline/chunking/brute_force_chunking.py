@@ -1,13 +1,13 @@
 """Brute force chunking"""
 
-import uuid
 import logging
+import uuid
 from typing import List, Tuple
 
 from tqdm import tqdm
 
-from air.knowledge.schema import Document, TextElement
 from air.knowledge.pipeline.chunking.base_chunking import BaseChunking
+from air.types import Document, TextElement
 
 logger = logging.getLogger(__name__)
 

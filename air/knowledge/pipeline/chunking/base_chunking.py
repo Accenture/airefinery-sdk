@@ -1,24 +1,8 @@
-from typing import List, Tuple
 from abc import ABCMeta, abstractmethod
+from typing import List, Tuple
 
-from pydantic import BaseModel, Field
-
-from air.knowledge.schema import Document
 from air.knowledge.pipeline.chunking.chunking_registry import ChunkingRegistry
-
-
-class ChunkingConfig(BaseModel):
-    """
-    Chunking configuration class
-    """
-
-    algorithm: str = Field(
-        default="BruteForceChunking", description="Type of Chunking Algorithm"
-    )
-    chunk_size: int = Field(..., description="Max length per chunk")
-    overlap_size: int = Field(
-        default=0, description="Overlap between two neighboring chunks"
-    )
+from air.types import ChunkingConfig, Document
 
 
 class ChunkingMeta(ABCMeta):

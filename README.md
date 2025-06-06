@@ -194,3 +194,14 @@ python example.py
 ```
 
 Running these commands will create your project on the AI Refinery™ server and run your Distiller client. 
+
+## Releases & Versioning
+`airefinery-sdk` is currently on version `1.MINOR.PATCH`.
+The `airefinery-sdk` package defines the main interfaces and runtime logic for the entire AIRefinery Platform. To maintain stability, we will clearly announce any breaking changes in advance and reflect them through appropriate version updates and deprecation announcement.
+As a rule, any changes that break compatibility in stable parts of the API will result in a minor or major version update, depending on the scope of the change.
+### Minor version increases will occur for:
+- Introduction of new agents or capabilities
+- Additions to supported features
+### Patch version increases will occur for:
+- Bug fixes
+- Minor improvements or refinements that do not affect API stability

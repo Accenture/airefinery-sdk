@@ -1,0 +1,261 @@
+"""Module containing the WriterExecutor for Writer AI Web agent integration.
+Before using this module, don’t forget to:
+1. Install the Writer SDK extra dependencies:
+   `pip install -e '.[air-writer-ai]'`
+2. 'Export' your Writer API token in your shell:
+    `export WRITER_AUTH_TOKEN=<your_token_here>`
+"""
+
+import asyncio
+import json
+import logging
+import os
+from typing import Any, Callable, Dict
+
+import requests
+from httpx import Response
+
+from air.distiller.executor.executor import Executor
+
+logger = logging.getLogger(__name__)
+
+try:
+    from writerai import AsyncWriter
+except ImportError as exc:
+    logger.error(
+        "[Installation Failed] Missing Writer AI SDK dependencies. "
+        'Install with: pip install "airefinery-sdk[tah-writer-ai]"'
+    )
+    raise
+
+
+class WriterExecutor(Executor):
+    """Executor class for Writer Web Agent leveraging Writer AI's agent engines.
+
+    This class extends the generic `Executor` to provide functionality for interacting
+    with an Writer AI agent via its Web UI creation mode.
+    """
+
+    agent_class: str = "WriterAIAgent"
+
+    # pylint: disable=too-many-arguments,too-many-locals
+    def __init__(
+        self,
+        func: Dict[str, Callable],
+        send_queue: asyncio.Queue,
+        account: str,
+        project: str,
+        uuid: str,
+        role: str,
+        utility_config: Dict[str, Any],
+        return_string: bool = True,
+    ):
+        """Initializes the WriterExecutor.
+
+        Args:
+            func: A dictionary mapping function names to callables.
+            send_queue: An asyncio.Queue for sending output messages.
+            account: The account identifier.
+            project: The project identifier.
+            uuid: A unique identifier for the session or request.
+            role: The role identifier for this executor (e.g., "agent").
+            utility_config: A configuration dictionary containing:
+                - "application_id": The app_id to reach out to Writer AI agent instance.
+                - "api_key_env_var": The name of local variable that stores token for the Writer agent.
+            return_string: Flag to determine if the result should be returned as a string.
+
+        Raises:
+            ValueError: If any required configuration key is missing.
+            Exception: If initialization of the Writer client or agent fails.
+        """
+        logger.debug(
+            "Initializing WriterExecutor with role=%r, account=%r, project=%r, uuid=%r",
+            role,
+            account,
+            project,
+            uuid,
+        )
+        # Validate required fields
+        application_id_str = utility_config.get("application_id")
+
+        if application_id_str is None or not application_id_str.strip():
+            raise ValueError(
+                "Missing required configuration 'application_id_str' "
+                "in utility_config."
+            )
+
+        self.application_id = application_id_str.strip()
+
+        writer_key_varname = utility_config.get("api_key_env_var")
+
+        if writer_key_varname is None or not writer_key_varname.strip():
+            raise ValueError(
+                "Missing required configuration 'api_key_env_var' in utility_config."
+            )
+
+        # Get the token from local to access writer AI agent.
+        writer_key = os.getenv(writer_key_varname.strip())
+        if writer_key is None:
+            raise ValueError(
+                f"Environment variable '{writer_key_varname}' is not set or is empty."
+            )
+
+        self.writer_key = writer_key
+
+        # Initialize the base Executor with our specialized execution method.
+        super().__init__(
+            func=self._execute_agent,
+            send_queue=send_queue,
+            account=account,
+            project=project,
+            uuid=uuid,
+            role=role,
+            return_string=return_string,
+        )
+
+    def _execute_agent(self, **kwargs) -> str:
+        """
+        Executes the Writer agent using a prompt-driven interface.
+
+        This method serves as the main entry point for invoking the Writer agent
+        and is typically called by the parent Executor. It determines the execution
+        flow based on the provided `action` argument and synchronously triggers the
+        appropriate asynchronous method.
+
+        Args:
+            **kwargs: Arbitrary keyword arguments expected to include:
+                - action (str): Specifies the operation to perform. Supported values:
+                    - "request_input_schema": Fetches the agent's input schema.
+                    - "process_inputs": Processes the given input list using the agent.
+                - inputs (list, optional): A list of dictionaries conforming to the input schema,
+                required only when action == "process_inputs".
+
+        Returns:
+            str: The response generated by the Writer agent, typically a JSON-formatted string
+            or schema definition depending on the requested action.
+
+        Raises:
+            ValueError: If the `action` parameter is missing, unknown, or required inputs
+            are not provided for the selected action.
+        """
+        action = kwargs.get("action")
+        if not action:
+            raise ValueError(
+                "Missing 'action' parameter in WriterExecutor._execute_agent."
+            )
+
+        if action == "request_input_schema":
+            return asyncio.run(self._request_input_schema())
+
+        if action == "process_inputs":
+            inputs = kwargs.get("inputs")
+            if not inputs:
+                raise ValueError(
+                    "Missing 'inputs' parameter in WriterExecutor._execute_agent."
+                )
+            return asyncio.run(self._process_inputs(inputs))
+
+        raise ValueError(f"Unknown action '{action}' in WriterExecutor._execute_agent.")
+
+    async def _request_input_schema(self) -> str:
+        """
+        Asynchronously retrieves the input schema for the Writer AI agent.
+
+        This method sends a GET request to the Writer API to fetch metadata
+        about the specified application, including its expected input fields.
+        The response is parsed to extract the input schema, which defines the
+        structure and types of input parameters the agent accepts.
+
+        Returns:
+            str: A JSON-formatted string representing the input schema.
+
+        Raises:
+            httpx.HTTPStatusError: If the API request fails or returns an error status.
+            ValueError: If the response does not contain an 'inputs' field.
+        """
+
+        client = AsyncWriter(api_key=self.writer_key)
+        schema_fields = ""
+        try:
+            schema_resp: Response = await client.get(
+                f"/v1/applications/{self.application_id}", cast_to=Response
+            )
+            app_details = schema_resp.json()
+            schema_fields = app_details.get("inputs", [])
+        except requests.RequestException as e:
+            raise RuntimeError(f"Failed to fetch input schema: {e}") from e
+
+        return schema_fields
+
+    async def _process_inputs(self, inputs: list) -> str:
+        """
+        Asynchronously submits inputs to the Writer AI agent and retrieves the generated output.
+
+        This method performs a two-step interaction with the Writer API:
+        1. Submits a job containing the specified inputs.
+        2. Polls the job status until it is either completed or failed.
+
+        Upon successful completion, the method extracts and returns the "suggestion" field
+        from the API response.
+
+        Args:
+            inputs (list): A list of input dictionaries conforming to the Writer agent's input schema.
+                        Each dictionary should include "id", "name", and "value" keys.
+
+        Returns:
+            str: The generated suggestion returned by the Writer agent.
+
+        Raises:
+            RuntimeError: If the job fails to start, the job fails during processing,
+                        or if an unexpected API response or exception occurs.
+        """
+        client = AsyncWriter(api_key=self.writer_key)
+
+        try:
+            # Step 1: Submit the job
+            create_resp: Response = await client.post(
+                f"/v1/applications/{self.application_id}/jobs",
+                body={"inputs": inputs},
+                cast_to=Response,
+            )
+            create_data = create_resp.json()
+            job_id = create_data.get("id")
+
+            if not job_id:
+                raise RuntimeError(f"Failed to start job (no 'id'): {create_data}")
+
+        except Exception as e:
+            raise RuntimeError(f"Exception occurred while submitting job: {e}") from e
+
+        response: str = ""
+        try:
+            # Step 2: Poll until completion
+            while True:
+                status_resp: Response = await client.get(
+                    f"/v1/applications/jobs/{job_id}", cast_to=Response
+                )
+                status_data = status_resp.json()
+                status = status_data.get("status")
+
+                if status == "completed":
+                    raw = status_data["data"]["suggestion"]
+                    try:
+                        # parse it into a Python object
+                        response = json.loads(json.dumps(raw, indent=2))
+                        break
+                    except json.JSONDecodeError as je:
+                        raise RuntimeError(
+                            f"Failed to parse suggestion JSON: {je}\nRaw: {raw}"
+                        ) from je
+
+                if status == "failed":
+                    raise RuntimeError(f"Job failed: {status_data}")
+
+                await asyncio.sleep(1)
+
+        except Exception as e:
+            raise RuntimeError(
+                f"Exception occurred while polling job status: {e}"
+            ) from e
+
+        return response

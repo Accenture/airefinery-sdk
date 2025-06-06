@@ -7,15 +7,17 @@ import logging
 from typing import List
 
 import requests
-from openai import OpenAI
+from requests.exceptions import HTTPError
 from tenacity import (
     retry,
+    retry_if_exception_type,
     stop_after_attempt,
     wait_random_exponential,
-    retry_if_exception_type,
 )
 
+from air import auth
 from air.api.vector_db.base_vectordb import BaseVectorDB, VectorDBConfig
+from air.embeddings import EmbeddingsClient
 
 logger = logging.getLogger(__name__)
 
@@ -67,18 +69,23 @@ class AzureAISearch(BaseVectorDB):
         return True
 
     def get_query_embedding(
-        self, query: str, embedding_client: OpenAI, embedding_model: str
+        self, query: str, embedding_client: EmbeddingsClient, embedding_model: str
     ) -> List:
         """
         Function to generate the embedding vector for a given query string
         """
-        response = embedding_client.embeddings.create(
-            input=[query], model=embedding_model
-        )
-        if not getattr(response, "status_code", 200) == 200:
+        try:
+            response = embedding_client.create(
+                input=[query],
+                model=embedding_model,
+                encoding_format="float",
+                extra_body={"input_type": "query"},
+                extra_headers={"airefinery_account": auth.account},
+            )
+        except HTTPError as http_err:
             logger.error(
-                "Embedding generation request failed with status code: %s",
-                getattr(response, "status_code"),
+                "Embedding generation request failed due to HTTP error: %s",
+                http_err,
             )
             return []
         embedding = response.data[0].embedding
@@ -90,7 +97,7 @@ class AzureAISearch(BaseVectorDB):
         wait=wait_random_exponential(multiplier=2, min=2, max=6),
     )
     def vector_search(
-        self, query: str, embedding_client: OpenAI, embedding_model: str
+        self, query: str, embedding_client: EmbeddingsClient, embedding_model: str
     ) -> List[dict]:
         """
         Function to perform vector search over the index

@@ -2,7 +2,7 @@
 
 from setuptools import find_packages, setup
 
-VERSION = "1.8.0"
+VERSION = "1.10.1"
 
 
 setup(
@@ -20,12 +20,11 @@ setup(
         "tenacity>=9.0.0",
         "uvicorn>=0.32.0",
         "setuptools>=75.2.0",
-        "numpy>=2.1.2",
+        "numpy>=1.26.0",
         "pandas>=2.2.3",
-        "google-genai>=1.9.0",
-        "google-cloud-aiplatform[agent_engines]>=1.87.0",
         "azure-identity>=1.19.0",
-        "azure-ai-projects==1.0.0b8",
+        "presidio-analyzer>=2.2.358",
+        "presidio-anonymizer>=2.2.358",
         "mcp>=1.6.0",
     ],
     include_package_data=True,
@@ -35,6 +34,40 @@ setup(
         ]
     },
     version=VERSION,
+    extras_require={
+        **(
+            extras := {
+                "tah-vertex-ai": [
+                    "google-genai>=1.9.1",
+                    "google-cloud-aiplatform[agent_engines]>=1.87.0",
+                ],
+                "tah-azure-ai": ["azure-ai-projects>=1.0.0b8"],
+                "tah-writer-ai": ["writer-sdk>=2.2.0"],
+                "knowledge": [
+                    "graphrag==2.1.0",
+                    "networkx>=3.4.2",
+                    "matplotlib>=3.10.1",
+                ],
+            }
+        ),
+        **({"full": (full := [pkg for deps in extras.values() for pkg in deps])}),
+        "test": [
+            "pytest>=8.3.3",
+            "pytest-cov>=5.0.0",
+            "pytest-asyncio>=0.24.0",
+            "pytest-azurepipelines>=1.0.5",
+            "pytest-mock>=3.14.0",
+            "pylint>=3.3.1",
+            "pyright>=1.1.389",
+            "black>=24.10.0",
+            "pre-commit>=4.0.1",
+            "seaborn>=0.13.2",
+            "azure-core>=1.32.0",
+            "azure-storage-blob>=12.24.1",
+        ]
+        + full,
+    },
     description="AI Refinery SDK",
-    author="AI Refinery",
+    author="Yujia Bao",
+    author_email="yujia.bao@accenture.com",
 )

@@ -1,1 +1,1 @@
-from air.distiller.distiller_client import DistillerClient
+from air.distiller.client import AsyncDistillerClient

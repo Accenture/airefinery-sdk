@@ -1,0 +1,69 @@
+# PII Handler Configuration
+
+common_entities:
+  - PERSON
+  - PHONE_NUMBER
+  - EMAIL_ADDRESS
+  - CREDIT_CARD
+  - US_SSN
+  - US_BANK_NUMBER
+  - US_PASSPORT
+  - LOCATION
+  - DATE_TIME
+  - IP_ADDRESS
+
+entity_operator_mapping:
+  CREDIT_CARD:
+    operator: replace
+    params:
+      new_value: "[CREDIT_CARD]"
+
+  US_SSN:
+    operator: replace
+    params:
+      new_value: "[US_SSN]"
+
+  US_BANK_NUMBER:
+    operator: replace
+    params:
+      new_value: "[US_BANK_NUMBER]"
+
+  US_PASSPORT:
+    operator: replace
+    params:
+      new_value: "[US_PASSPORT]"
+
+  PERSON:
+    operator: replace
+    params:
+      new_value: "[PERSON]"
+
+  PHONE_NUMBER:
+    operator: replace
+    params:
+      new_value: "[PHONE]"
+
+  EMAIL_ADDRESS:
+    operator: replace
+    params:
+      new_value: "[EMAIL]"
+
+  LOCATION:
+    operator: replace
+    params:
+      new_value: "[LOCATION]"
+
+  DATE_TIME:
+    operator: replace
+    params:
+      new_value: "[DATE]"
+
+  IP_ADDRESS:
+    operator: replace
+    params:
+      new_value: "[IP]"
+
+  DEFAULT:
+    operator: replace
+    params:
+      new_value: "<PII>"

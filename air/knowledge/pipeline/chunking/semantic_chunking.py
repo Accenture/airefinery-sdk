@@ -1,12 +1,12 @@
 import logging
+import re
 from typing import List, Tuple
 
-import re
 import numpy as np
 from tqdm import tqdm
 
 from air.knowledge.pipeline.chunking.base_chunking import BaseChunking, ChunkingConfig
-from air.knowledge.schema import Document, TextElement
+from air.types import Document, TextElement
 
 logger = logging.getLogger(__name__)
 

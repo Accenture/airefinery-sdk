@@ -1,6 +1,7 @@
 import asyncio
+import inspect
 import json
-from typing import Callable, Dict, Any
+from typing import Callable, Dict, Any, get_type_hints
 import logging
 
 from air.distiller.executor.executor import Executor
@@ -142,6 +143,31 @@ class ToolExecutor(Executor):
         logger.debug(
             f"Executing tool function '{executor}' for request_id '{request_id}'."
         )
+
+        # -----------------------------------------------------
+        # Automatically convert kwargs from str to int/float
+        # based on selected_func’s signature and type hints.
+        # -----------------------------------------------------
+        signature = inspect.signature(selected_func)
+        type_hints = get_type_hints(selected_func)
+        for param_name, param in signature.parameters.items():
+            if param_name in kwargs:
+                expected_type = type_hints.get(param_name)
+                current_value = kwargs[param_name]
+
+                # Only convert if the current value is a string
+                # and the type hint is int or float
+                if isinstance(current_value, str) and expected_type in (int, float):
+                    try:
+                        if expected_type is int:
+                            kwargs[param_name] = int(current_value)
+                        elif expected_type is float:
+                            kwargs[param_name] = float(current_value)
+                    except ValueError:
+                        logger.warning(
+                            f"Failed to convert '{param_name}' from string to {expected_type}; "
+                            f"original value='{current_value}'. Leaving as string."
+                        )
 
         try:
             # Call the base class __call__ method with the selected function

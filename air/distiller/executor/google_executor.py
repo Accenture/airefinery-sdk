@@ -4,16 +4,23 @@ import asyncio
 import logging
 from typing import Any, Callable, Dict, Optional
 
-import vertexai
-from google.genai import types
-
-# The following import is necessary as vertexai by default doesn't load
-# agent_engines
-from vertexai import agent_engines  # pylint:disable=unused-import
-
 from air.distiller.executor.executor import Executor
 
 logger = logging.getLogger(__name__)
+
+try:
+    import vertexai
+    from google.genai import types
+
+    # The following import is necessary as vertexai by default doesn't load
+    # agent_engines
+    from vertexai import agent_engines  # pylint:disable=unused-import
+except ImportError as exc:
+    logger.error(
+        "[Installation Failed] Missing Vertex AI SDK dependencies. "
+        'Install with: pip install "airefinery-sdk[tah-vertex-ai]"'
+    )
+    raise
 
 
 class GoogleExecutor(Executor):

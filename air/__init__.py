@@ -1,5 +1,5 @@
 # pylint: disable=wrong-import-position,line-too-long,unnecessary-dunder-call
-__version__ = "1.8.0"
+__version__ = "1.10.1"
 
 __base_url__ = "https://api.airefinery.accenture.com"
 __token_url__ = "https://login.microsoftonline.com/e0793d39-0939-496d-b129-198edd916feb/oauth2/v2.0/token"
@@ -10,12 +10,13 @@ from air.authenticator import Authenticator
 
 auth = Authenticator()
 
-from air.api import PostgresAPI as DatabaseClient  # Backward compatible
-from air.api import PostgresAPI
-from air.distiller import DistillerClient
-from air.knowledge import DocumentProcessingClient, DocumentProcessingConfig
-from air.utils import compliance_banner
 from typing import Optional
+
+from air.api import PostgresAPI  # Backward compatible
+from air.api import PostgresAPI as DatabaseClient
+from air.client import AIRefinery, AsyncAIRefinery
+from air.distiller import AsyncDistillerClient as DistillerClient
+from air.utils import compliance_banner
 
 # AIR SDK Legal requirement
 compliance_banner()

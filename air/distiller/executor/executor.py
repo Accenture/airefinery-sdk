@@ -92,6 +92,9 @@ class Executor:
             print("Exception in function execution")
             raise RuntimeError(f"Exception in function execution: {e}") from e
 
+        # Validate the result
+        result = self.validate_result(result)
+
         # Process the result
         res_content = str(result) if self.return_string else result
 
@@ -109,6 +112,15 @@ class Executor:
         )
 
         logger.debug("Result sent to send_queue.")
+
+        return result
+
+    def validate_result(self, result):
+        """
+        Validates if the result is in a correct format.
+        The executors that need result validation must
+        have their own implementations
+        """
 
         return result
 

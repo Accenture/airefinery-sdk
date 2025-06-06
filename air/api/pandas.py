@@ -3,8 +3,9 @@ This module provides a DataFrame client capable of
 executing queries on pandas DataFrames and returning the results efficiently.
 """
 
-import traceback
+import json
 import os
+import traceback
 from typing import Any
 
 import pandas as pd
@@ -110,9 +111,8 @@ class PandasAPI:
                 query_results = pd.DataFrame([query_results])
 
             if return_stringified_result:
-                # return full result including column names,
-                # indices, values as a string.
-                return [query_results.to_string()], True
+                # convert result df to a json string and return
+                return [json.dumps(query_results.to_json(orient="index"))], True
 
             return [tuple(row) for row in query_results.itertuples(index=False)], True
 

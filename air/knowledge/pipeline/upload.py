@@ -2,32 +2,16 @@
 VectorDBUpload and its config class
 """
 
-import logging
 import concurrent.futures
+import logging
 from typing import List, Tuple
 
 from tqdm import tqdm
-from pydantic import BaseModel, Field
 
-from air.knowledge.schema import Document
-from air.api.vector_db import VectorDBConfig
-from air.api.vector_db import VectorDBRegistry
+from air.api.vector_db import VectorDBConfig, VectorDBRegistry
+from air.types import Document, VectorDBUploadConfig
 
 logger = logging.getLogger(__name__)
-
-
-class VectorDBUploadConfig(BaseModel):
-    """
-    VectorDB upload configuration class
-    """
-
-    batch_size: int = Field(
-        default=50, description="Number of rows in a batch per upload request"
-    )
-    max_workers: int = Field(
-        default=8,
-        description="Number of parallel threads to spawn while uploading rows to vector DB",
-    )
 
 
 class VectorDBUpload:
