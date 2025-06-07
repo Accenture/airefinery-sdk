@@ -50,22 +50,7 @@ setup(
                 ],
             }
         ),
-        **({"full": (full := [pkg for deps in extras.values() for pkg in deps])}),
-        "test": [
-            "pytest>=8.3.3",
-            "pytest-cov>=5.0.0",
-            "pytest-asyncio>=0.24.0",
-            "pytest-azurepipelines>=1.0.5",
-            "pytest-mock>=3.14.0",
-            "pylint>=3.3.1",
-            "pyright>=1.1.389",
-            "black>=24.10.0",
-            "pre-commit>=4.0.1",
-            "seaborn>=0.13.2",
-            "azure-core>=1.32.0",
-            "azure-storage-blob>=12.24.1",
-        ]
-        + full,
+        **({"full": (full := [pkg for deps in extras.values() for pkg in deps])})
     },
     description="AI Refinery SDK",
     author="Yujia Bao",
