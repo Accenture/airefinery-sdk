@@ -17,10 +17,11 @@ jobs:
       with:
         python-version: "3.12"
 
-    steps:
-      - name: Install build tools
-        run: pip install build
-      - name: Build the package
-        run: python -m build
-      - name: Publish to PyPI via Trusted Publishing
-        uses: pypa/gh-action-pypi-publish@release/v1
+    - name: Install build tools
+      run: pip install build
+
+    - name: Build the package
+      run: python -m build
+      
+    - name: Publish to PyPI via Trusted Publishing
+      uses: pypa/gh-action-pypi-publish@release/v1
