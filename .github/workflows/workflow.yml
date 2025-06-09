@@ -7,6 +7,9 @@ on:
   #     - main
   # workflow_dispatch:
 
+permissions:
+  id-token: write
+  
 jobs:
   build:
     name: Build distribution
