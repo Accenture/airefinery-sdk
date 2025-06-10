@@ -53,6 +53,6 @@ setup(
         **({"full": (full := [pkg for deps in extras.values() for pkg in deps])})
     },
     description="AI Refinery SDK",
-    author="Yujia Bao",
-    author_email="yujia.bao@accenture.com",
+    author="Accenture",
+    author_email="sdk_airefinery@accenture.com",
 )
