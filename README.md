@@ -36,7 +36,7 @@ All the APIs integrated in the AI Refinery™ SDK are detailed in [API page](htt
 We recommend using a MacOS or a Linux system to install the SDK. For Windows setup, we recommend using **WSL (Windows Subsystem Linux)**, a Linux kernel you can access from Windows. For instructions on installing WSL, please visit [this page](https://documentation.ubuntu.com/wsl/en/latest/guides/install-ubuntu-wsl2/). Please use **Ubuntu Distro 22.04** or above.
 
 ```bash
-pip install "git+https://github.com/Accenture/airefinery-sdk.git@main"
+pip install airefinery-sdk
 ```
 
 ## Examples
@@ -133,9 +133,7 @@ utility_agents:
 import asyncio
 import os
 
-from openai import AsyncOpenAI
-
-from air import login, DistillerClient
+from air import login, DistillerClient, AsyncAIRefinery
 
 auth = login(
     account=str(os.getenv("AIREFINERY_ACCOUNT")),
@@ -146,7 +144,7 @@ async def simple_agent(query: str):
     global auth
 
     prompt = "You are an AI assistant that helps users navigate their projects."
-    client = AsyncOpenAI(**auth.openai())
+    client = AsyncAIRefinery(**auth.openai())
 
     response = await client.chat.completions.create(
         messages=[{"role": "user", "content": prompt}],
@@ -197,11 +195,18 @@ Running these commands will create your project on the AI Refinery™ server and
 
 ## Releases & Versioning
 `airefinery-sdk` is currently on version `1.MINOR.PATCH`.
+
 The `airefinery-sdk` package defines the main interfaces and runtime logic for the entire AIRefinery Platform. To maintain stability, we will clearly announce any breaking changes in advance and reflect them through appropriate version updates and deprecation announcement.
 As a rule, any changes that break compatibility in stable parts of the API will result in a minor or major version update, depending on the scope of the change.
+
 ### Minor version increases will occur for:
+
 - Introduction of new agents or capabilities
+
 - Additions to supported features
+
 ### Patch version increases will occur for:
+
 - Bug fixes
+
 - Minor improvements or refinements that do not affect API stability

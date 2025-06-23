@@ -5,7 +5,8 @@ from air.types.chat import (
     ChatCompletionMessageToolCall,
 )
 from air.types.embeddings import CreateEmbeddingResponse, Embedding
-from air.types.images import ImagesResponse
+from air.types.images import ImagesResponse, SegmentationResponse
+from air.types.audio import ASRResponse, TTSResponse
 from air.types.knowledge import (
     ChunkingConfig,
     ClientConfig,

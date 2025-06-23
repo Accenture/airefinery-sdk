@@ -4,10 +4,8 @@ A module that defines top-level clients (synchronous and asynchronous)
 to interact with sub-clients such as chat, embeddings, models, and distiller.
 """
 
-from air.chat import (
-    AsyncChatClient,
-    ChatClient,
-)
+from air.audio import AsyncAudio, Audio
+from air.chat import AsyncChatClient, ChatClient
 from air.distiller import AsyncDistillerClient
 from air.embeddings import (
     AsyncEmbeddingsClient,
@@ -18,10 +16,7 @@ from air.images import (
     ImagesClient,
 )
 from air.knowledge import AsyncKnowledgeClient, KnowledgeClient
-from air.models import (
-    AsyncModelsClient,
-    ModelsClient,
-)
+from air.models import AsyncModelsClient, ModelsClient
 
 
 class AsyncAIRefinery:  # pylint: disable=too-many-instance-attributes,too-few-public-methods
@@ -45,6 +40,20 @@ class AsyncAIRefinery:  # pylint: disable=too-many-instance-attributes,too-few-p
         # Use embeddings
         embeddings_response = await client.embeddings.create(
             model="model-name", input=["Hello"]
+        )
+
+        # Use tts
+        tts_response = await client.audio.speech.create(
+            model="model-name",
+            input="Hello, this is a test of text-to-speech synthesis.",
+            voice="en-US-JennyNeural",
+            response_format="mp3",  # Optional
+            speed=1.0  # Optional
+
+        # Use asr
+        asr_response = await client.audio.transcriptions.create(
+            model="model-name",
+            file=file
         )
 
         # Use models
@@ -102,6 +111,12 @@ class AsyncAIRefinery:  # pylint: disable=too-many-instance-attributes,too-few-p
             api_key=self.api_key,
             default_headers=self.default_headers,
         )
+        # Provides async asr and tts functionalities
+        self.audio = AsyncAudio(
+            base_url=self.base_url,
+            api_key=self.api_key,
+            default_headers=self.default_headers,
+        )
         # Provides async models functionalities
         self.models = AsyncModelsClient(
             base_url=self.base_url,
@@ -150,6 +165,20 @@ class AIRefinery:  # pylint: disable=too-many-instance-attributes,too-few-public
         # Use embeddings
         embeddings_response = client.embeddings.create(
             model="model-name", input=["Hello"]
+        )
+
+        # Use tts
+        tts_response = client.audio.speech.create(
+            model="model-name",
+            input="Hello, this is a test of text-to-speech synthesis.",
+            voice="en-US-JennyNeural",
+            response_format="mp3",  # Optional
+            speed=1.0  # Optional
+
+        # Use asr
+        asr_response = client.speech_to_text.create(
+            model="model-name",
+            file=["audio1.wav", "audio2.wav"]
         )
 
         # Use models
@@ -204,13 +233,19 @@ class AIRefinery:  # pylint: disable=too-many-instance-attributes,too-few-public
             api_key=self.api_key,
             default_headers=self.default_headers,
         )
+        # Provides sync asr and tts functionalities
+        self.audio = Audio(
+            base_url=self.base_url,
+            api_key=self.api_key,
+            default_headers=self.default_headers,
+        )
         # Provides sync models functionalities
         self.models = ModelsClient(
             base_url=self.base_url,
             api_key=self.api_key,
             default_headers=self.default_headers,
         )
-        # Provides sync embeddings functionalities
+        # Provides sync images functionalities
         self.images = ImagesClient(
             base_url=self.base_url,
             api_key=self.api_key,

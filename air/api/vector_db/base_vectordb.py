@@ -21,7 +21,7 @@ class VectorDBConfig(BaseModel):
     type: str = Field(default="AzureAISearch", description="Type of the Vector DB")
     base_url: str = Field(..., description="Vector DB URL")
     api_key: str = Field(..., description="API key required to access the vector DB")
-    api_version: str = Field(..., description="API Version")
+    api_version: str = Field(default="2023-11-01", description="API Version")
     index: str = Field(..., description="Name of the vector db index")
     embedding_column: str = Field(
         default="text_vector",

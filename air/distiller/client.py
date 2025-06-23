@@ -136,6 +136,7 @@ class AsyncDistillerClient:
         payload = {
             "project": project,
             "config": json_config,
+            "sdk_version": __version__,
         }
 
         # Prepare the headers with the API key for authentication
@@ -170,6 +171,7 @@ class AsyncDistillerClient:
         self,
         project: str,
         project_version: Optional[str] = None,
+        sdk_version: Optional[str] = None,
     ) -> Optional[dict]:
         """
         Download the configuration from the server for a given project. (REST API)
@@ -186,6 +188,7 @@ class AsyncDistillerClient:
         payload = {
             "project": project,
             "project_version": project_version,
+            "sdk_version": __version__,
         }
 
         # Prepare the headers with the API key for authentication
@@ -431,7 +434,9 @@ class AsyncDistillerClient:
                 )
 
             # Load the latest project config for the user
-            project_config_dict = self.download_project(project, project_version)
+            project_config_dict = self.download_project(
+                project, project_version, __version__
+            )
             if not project_config_dict:
                 raise ValueError("Project configuration could not be loaded.")
 

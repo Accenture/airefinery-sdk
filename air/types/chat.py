@@ -9,7 +9,7 @@ This module provides:
   • ChatCompletion         – Top-level ChatCompletion response
 """
 
-from typing import Optional, List, Any
+from typing import Any, List, Optional
 
 from air.types.base import CustomBaseModel
 
@@ -112,7 +112,6 @@ class ChatCompletion(CustomBaseModel):
         usage: Token usage statistics for this completion, if available.
         service_tier: Possible service-tier metadata, if provided.
         system_fingerprint: System or model fingerprint, if provided.
-        prompt_logprobs: Log-probability data for the prompt, if available.
     """
 
     id: str
@@ -124,4 +123,3 @@ class ChatCompletion(CustomBaseModel):
 
     service_tier: Optional[Any] = None
     system_fingerprint: Optional[Any] = None
-    prompt_logprobs: Optional[Any] = None
