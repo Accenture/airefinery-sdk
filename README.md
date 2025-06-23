@@ -120,7 +120,7 @@ utility_agents:
 
 3. Create you first DistillerClient
 
-[`DistillerClient`](../api-reference/distiller-index.md) API creates a distiller client. This client will interface with the AI Refinery™ service to run your project. Below is a function that sets up the distiller client. Here's what it does:  
+[`DistillerClient`](https://sdk.airefinery.accenture.com/setup/api-reference/distiller-index/) API creates a distiller client. This client will interface with the AI Refinery™ service to run your project. Below is a function that sets up the distiller client. Here's what it does:  
 
 - Authenticate you using `AIREFINERY_ACCOUNT` and `AIREFINERY_API_KEY` from your os envenvironment variables.
 - Defines the `simple_agent` function that will cover the scope of the `Assistant Agent` using AI Refinery™ Inference-as-a-service.  
@@ -135,9 +135,11 @@ import os
 
 from air import login, DistillerClient, AsyncAIRefinery
 
+API_KEY =str(os.getenv("AIREFINERY_API_KEY"))
+
 auth = login(
     account=str(os.getenv("AIREFINERY_ACCOUNT")),
-    api_key=str(os.getenv("AIREFINERY_API_KEY")),
+    api_key=API_KEY,
 )
 
 async def simple_agent(query: str):
@@ -152,12 +154,12 @@ async def simple_agent(query: str):
     )
     return response.choices[0].message.content
 
-def distiller_client_test():
-    distiller_client = DistillerClient()
+async def distiller_client_test():
+    client = AsyncAIRefinery(api_key=API_KEY)
     project_name = "my_first_project"
 
     # upload your config file to register a new distiller project
-    distiller_client.create_project(config_path="example.yaml", project=project_name) 
+    client.distiller.create_project(config_path="example.yaml", project=project_name) 
 
     # Define a mapping between your custom agent to Callable.
     # When the custom agent is summoned by the super agent / orchestrator,
@@ -166,7 +168,7 @@ def distiller_client_test():
     executor_dict = {
         "Assistant Agent": simple_agent,
     }
-    async with distiller_client(
+    async with client.distiller(
         project=project_name,
         uuid="test_user",
         executor_dict=executor_dict,
@@ -177,7 +179,8 @@ def distiller_client_test():
 
 if __name__ == "__main__":
 
-    distiller_client_test()
+    asyncio.run(distiller_client_test())
+
 
 ```
 
