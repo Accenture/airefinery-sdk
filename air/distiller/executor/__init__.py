@@ -28,6 +28,10 @@ _AGENT_CLASS_MAP = {
         "air.distiller.executor.vector_search_executor",
         "CustomVectorSearchExecutor",
     ),
+    "AmazonBedrockAgent": (
+        "air.distiller.executor.amazon_bedrock_executor",
+        "AmazonBedrockExecutor",
+    ),
 }
 
 # Cache for already-imported executor classes, so we import them only once.

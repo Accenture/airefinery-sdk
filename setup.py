@@ -2,7 +2,7 @@
 
 from setuptools import find_packages, setup
 
-VERSION = "1.11.0"
+VERSION = "1.11.1"
 
 
 setup(
@@ -46,6 +46,9 @@ setup(
                     "graphrag==2.1.0",
                     "networkx>=3.4.2",
                     "matplotlib>=3.10.1",
+                ],
+                "tah-aws-ai": [
+                    "boto3==1.38.36",
                 ],
             }
         ),
