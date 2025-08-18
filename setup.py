@@ -2,7 +2,7 @@
 
 from setuptools import find_packages, setup
 
-VERSION = "1.13.1"
+VERSION = "1.14.0"
 
 
 setup(
@@ -22,6 +22,7 @@ setup(
         "presidio-analyzer>=2.2.358",
         "presidio-anonymizer>=2.2.358",
         "mcp>=1.6.0",
+        "aiofiles>=24.1.0",
     ],
     include_package_data=True,
     entry_points={
@@ -34,8 +35,8 @@ setup(
         **(
             extras := {
                 "tah-vertex-ai": [
-                    "google-genai>=1.9.1",
-                    "google-cloud-aiplatform[agent_engines]>=1.87.0",
+                    "google-genai==1.20.0",
+                    "google-cloud-aiplatform[agent_engines]==1.101.0",
                 ],
                 "tah-azure-ai": [
                     "azure-ai-projects==1.0.0b8",
@@ -46,6 +47,7 @@ setup(
                     "graphrag==2.1.0",
                     "networkx>=3.4.2",
                     "matplotlib>=3.10.1",
+                    "openai<=1.99.1",
                 ],
                 "tah-aws-ai": [
                     "boto3==1.38.36",

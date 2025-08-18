@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import json
 from typing import Any, Callable, Dict, Optional
 
 from air.distiller.executor.executor import Executor
@@ -107,6 +108,7 @@ class GoogleExecutor(Executor):
             **kwargs: Expected to contain:
                 - prompt (str): The prompt or query for the agent.
                 - session_id (str): The session identifier for the agent.
+                - user_id (str): The uuid from the current session.
 
         Returns:
             A string response from the Vertex AI agent engine.
@@ -117,6 +119,7 @@ class GoogleExecutor(Executor):
         """
         prompt = kwargs.get("prompt")
         session_id = kwargs.get("session_id", "")
+        user_id = kwargs.get("uuid", "user_id")
 
         if not prompt:
             raise ValueError(
@@ -126,25 +129,47 @@ class GoogleExecutor(Executor):
         logger.debug("Running agent with prompt=%r, session_id=%r", prompt, session_id)
 
         try:
-            # Linter does not recognize run as a method of AgentEngine.
-            # This is likely an issue from Google's side.
-            events = self.agent_engine.run(  # pylint:disable=no-member
-                session_id=session_id,
-                message=types.Content(
-                    parts=[types.Part(text=prompt)],
-                    role="user",
-                ).model_dump_json(),
-            )
+            request = {
+                "user_id": user_id,
+                "session_id": session_id,
+                "message": {"role": "user", "parts": [{"text": prompt}]},
+                "events": [],
+                "artifacts": [],
+                "authorizations": {},
+            }
+            request_json = json.dumps(request)
         except Exception:
             logger.exception("Error while running Vertex AI agent engine.")
             raise
 
         result_parts = []
-        for event in events:
-            for part in event.get("parts", []):
-                text_chunk = part.get("text", "")
-                if text_chunk:
-                    result_parts.append(text_chunk)
+        # Linter does not recognize streaming_agent_run_with_events as a method of AgentEngine.
+        # This is seems like a persistent issue from Google's side.
+        # Previously: Linter does not recognize run as a method of AgentEngine.
+        try:
+            for (
+                stream_chunk
+            ) in self.agent_engine.streaming_agent_run_with_events(  # pylint:disable=no-member
+                request_json=request_json
+            ):
+                try:
+                    events = stream_chunk.get("events", [])
+                    for event in events:
+                        try:
+                            parts = event.get("content", {}).get("parts", [])
+                            for part in parts:
+                                text_chunk = part.get("text", "")
+                                if text_chunk:
+                                    result_parts.append(text_chunk)
+                        except Exception as e:
+                            # Log or handle error in processing an event
+                            logger.exception(f"Error processing event: {e}")
+                except Exception as e:
+                    # Log or handle error in processing a stream chunk
+                    logger.exception(f"Error processing stream chunk: {e}")
+        except Exception as e:
+            # Log or handle error in the overall stream
+            logger.exception(f"Error during streaming: {e}")
 
         final_response = "".join(result_parts)
         logger.info("Agent response received (length=%d)", len(final_response))
