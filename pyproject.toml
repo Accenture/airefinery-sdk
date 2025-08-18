@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "airefinery-sdk"
-version = "1.13.1"
+version = "1.14.0"
 description = "AI Refinery™ by Accenture SDK for developing and executing AI multi-agent solutions."
 readme = "README.md"
 requires-python = ">=3.12"
