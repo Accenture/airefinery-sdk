@@ -72,15 +72,17 @@ class AsyncDistillerClient:
         """
         super().__init__()
 
-        # Authenticate using provided account and API key
-        self.account = auth.account
-        if api_key:
-            self.api_key = api_key
-        else:
-            self.api_key = auth.api_key
-
         # Use the provided base URL or the default one
         self.base_url = __base_url__ if base_url == "" else base_url
+
+        if hasattr(auth, "account"):
+            self.account = auth.account
+            self.api_key = auth.api_key
+        else:
+            self.api_key = api_key
+            self.account = self.validate_api_key(api_key)
+
+        assert self.account, "Authentication failed."
 
         # Initialize other attributes
         self.project = None
@@ -105,6 +107,35 @@ class AsyncDistillerClient:
 
         # PII Handler potion (useful to identify & mask/unmask sensitive information)
         self.pii_handler = None
+
+    def validate_api_key(self, api_key: str):
+        """
+        Sends a POST request to validate the given API key.
+
+        Parameters:
+        api_key (str): The API key to be validated.
+
+        Returns:
+        response (requests.Response): The response object from the server.
+        """
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+            "sdk_version": __version__,
+        }
+
+        try:
+            response = requests.post(
+                f"{self.base_url}/authentication/validate", headers=headers
+            )
+            response.raise_for_status()  # Raise an error for bad responses
+            response_json = response.json()
+            organization_id = response_json.get("organization_id")
+
+            return organization_id
+        except requests.exceptions.RequestException as e:
+            print(f"An error occurred: {e}")
+            return None
 
     def create_project(
         self,
@@ -379,7 +410,7 @@ class AsyncDistillerClient:
 
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {auth.get_access_token()}",
+            "Authorization": f"Bearer {self.api_key}",
             "airefinery_account": self.account,
             "sdk_version": __version__,
         }
@@ -783,6 +814,7 @@ class AsyncDistillerClient:
         Returns:
             bool: True if logging is successful, False otherwise.
         """
+        assert self.account
         account = self.account.replace("-", "_")
         table_name = f"public.backend_information_{account}_{project}"
         print(f"TABLE NAME: {table_name}")

@@ -1,7 +1,8 @@
 # pylint: disable=wrong-import-position,line-too-long,unnecessary-dunder-call
-__version__ = "1.14.0"
+__version__ = "1.14.2"
 
 __base_url__ = "https://api.airefinery.accenture.com"
+
 __token_url__ = "https://login.microsoftonline.com/e0793d39-0939-496d-b129-198edd916feb/oauth2/v2.0/token"
 
 CACHE_DIR = ".air"
