@@ -103,25 +103,25 @@ class AsyncAIRefinery:  # pylint: disable=too-many-instance-attributes,too-few-p
 
         # Provides async chat functionalities
         self.chat = AsyncChatClient(
-            base_url=self.base_url,
+            base_url=self._update_inference_endpoint(),
             api_key=self.api_key,
             default_headers=self.default_headers,
         )
         # Provides async embeddings functionalities
         self.embeddings = AsyncEmbeddingsClient(
-            base_url=self.base_url,
+            base_url=self._update_inference_endpoint(),
             api_key=self.api_key,
             default_headers=self.default_headers,
         )
         # Provides async asr and tts functionalities
         self.audio = AsyncAudio(
-            base_url=self.base_url,
+            base_url=self._update_inference_endpoint(),
             api_key=self.api_key,
             default_headers=self.default_headers,
         )
         # Provides async models functionalities
         self.models = AsyncModelsClient(
-            base_url=self.base_url,
+            base_url=self._update_inference_endpoint(),
             api_key=self.api_key,
             default_headers=self.default_headers,
         )
@@ -133,7 +133,7 @@ class AsyncAIRefinery:  # pylint: disable=too-many-instance-attributes,too-few-p
         )
         # Provides async images functionalities
         self.images = AsyncImagesClient(
-            base_url=self.base_url,
+            base_url=self._update_inference_endpoint(),
             api_key=self.api_key,
             default_headers=self.default_headers,
         )
@@ -144,6 +144,23 @@ class AsyncAIRefinery:  # pylint: disable=too-many-instance-attributes,too-few-p
             api_key=self.api_key,
             default_headers=self.default_headers,
         )
+
+    def _update_inference_endpoint(self):
+        """
+        Ensures the base_url ends with the '/inference' suffix if necessary.
+
+        This method checks whether the `base_url` ends with "/inference".
+        If it does not, the method appends "/inference" to the URL and returns
+        the updated URL. This is particularly useful for ensuring compatibility
+        with authentication mechanisms like auth.openai(), where the "/inference"
+        suffix is automatically appended to the base URL.
+
+        Returns:
+            str: The base URL with "/inference" appended if it was not already present.
+        """
+        if not self.base_url.endswith("/inference"):
+            return self.base_url.rstrip("/") + "/inference"
+        return self.base_url
 
 
 class AIRefinery:  # pylint: disable=too-many-instance-attributes,too-few-public-methods
@@ -227,31 +244,31 @@ class AIRefinery:  # pylint: disable=too-many-instance-attributes,too-few-public
 
         # Provides sync chat functionalities
         self.chat = ChatClient(
-            base_url=self.base_url,
+            base_url=self._update_inference_endpoint(),
             api_key=self.api_key,
             default_headers=self.default_headers,
         )
         # Provides sync embeddings functionalities
         self.embeddings = EmbeddingsClient(
-            base_url=self.base_url,
+            base_url=self._update_inference_endpoint(),
             api_key=self.api_key,
             default_headers=self.default_headers,
         )
         # Provides sync asr and tts functionalities
         self.audio = Audio(
-            base_url=self.base_url,
+            base_url=self._update_inference_endpoint(),
             api_key=self.api_key,
             default_headers=self.default_headers,
         )
         # Provides sync models functionalities
         self.models = ModelsClient(
-            base_url=self.base_url,
+            base_url=self._update_inference_endpoint(),
             api_key=self.api_key,
             default_headers=self.default_headers,
         )
         # Provides sync images functionalities
         self.images = ImagesClient(
-            base_url=self.base_url,
+            base_url=self._update_inference_endpoint(),
             api_key=self.api_key,
             default_headers=self.default_headers,
         )
@@ -262,6 +279,23 @@ class AIRefinery:  # pylint: disable=too-many-instance-attributes,too-few-public
             api_key=self.api_key,
             default_headers=self.default_headers,
         )
+
+    def _update_inference_endpoint(self):
+        """
+        Ensures the base_url ends with the '/inference' suffix if necessary.
+
+        This method checks whether the `base_url` ends with "/inference".
+        If it does not, the method appends "/inference" to the URL and returns
+        the updated URL. This is particularly useful for ensuring compatibility
+        with authentication mechanisms like auth.openai(), where the "/inference"
+        suffix is automatically appended to the base URL.
+
+        Returns:
+            str: The base URL with "/inference" appended if it was not already present.
+        """
+        if not self.base_url.endswith("/inference"):
+            return self.base_url.rstrip("/") + "/inference"
+        return self.base_url
 
     @property
     def distiller(self):
