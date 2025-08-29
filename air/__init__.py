@@ -1,5 +1,5 @@
 # pylint: disable=wrong-import-position,line-too-long,unnecessary-dunder-call
-__version__ = "1.14.2"
+__version__ = "1.15.0"
 
 __base_url__ = "https://api.airefinery.accenture.com"
 
