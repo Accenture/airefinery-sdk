@@ -42,6 +42,10 @@ _AGENT_CLASS_MAP = {
         "air.distiller.executor.sap_executor",
         "SAPExecutor",
     ),
+    "SnowflakeAgent": (
+        "air.distiller.executor.snowflake_executor",
+        "SnowflakeExecutor",
+    ),
 }
 
 # Cache for already-imported executor classes, so we import them only once.
