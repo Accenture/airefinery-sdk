@@ -1,6 +1,5 @@
 import asyncio
 import json
-import os
 import re
 import traceback
 from importlib.metadata import version
@@ -10,13 +9,13 @@ import requests
 import websockets
 from omegaconf import OmegaConf
 
-from air import PostgresAPI, __base_url__, __version__, auth
+from air import BASE_URL, PostgresAPI, __version__
 from air.distiller.executor import (
-    get_all_exeecutor_agents,
+    get_all_executor_agents,
     get_executor,
 )
 from air.distiller.pii_handler.pii_handler import PIIHandler
-from air.utils import async_input, async_print
+from air.utils import async_input, async_print, get_base_headers
 
 
 def string_check(s) -> None:
@@ -62,7 +61,7 @@ class AsyncDistillerClient:
     max_size_ws_recv = 167772160
     ping_interval = 10
 
-    def __init__(self, *, base_url: str = "", api_key: str = "", **kwargs) -> None:
+    def __init__(self, api_key: str, *, base_url: str = BASE_URL, **kwargs) -> None:
         """
         Initialize the AsyncDistillerClient with authentication details.
 
@@ -73,15 +72,10 @@ class AsyncDistillerClient:
         super().__init__()
 
         # Use the provided base URL or the default one
-        self.base_url = __base_url__ if base_url == "" else base_url
+        self.base_url = base_url
+        self.api_key = api_key
 
-        if hasattr(auth, "account"):
-            self.account = auth.account
-            self.api_key = auth.api_key
-        else:
-            self.api_key = api_key
-            self.account = self.validate_api_key(api_key)
-
+        self.account = self.validate_api_key(api_key)
         assert self.account, "Authentication failed."
 
         # Initialize other attributes
@@ -118,11 +112,7 @@ class AsyncDistillerClient:
         Returns:
         response (requests.Response): The response object from the server.
         """
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {api_key}",
-            "sdk_version": __version__,
-        }
+        headers = get_base_headers(api_key)
 
         try:
             response = requests.post(
@@ -175,12 +165,12 @@ class AsyncDistillerClient:
         }
 
         # Prepare the headers with the API key for authentication
-        headers = {
-            "Content-Type": "application/json",
-            "airefinery_account": self.account,
-            "sdk_version": __version__,
-            "Authorization": f"Bearer {self.api_key}",
-        }
+        headers = get_base_headers(
+            self.api_key,
+            extra_headers={
+                "airefinery_account": self.account,
+            },
+        )
 
         # Determine the base URL
         base_url = f"{self.base_url}/{self.create_suffix}"
@@ -228,12 +218,12 @@ class AsyncDistillerClient:
         }
 
         # Prepare the headers with the API key for authentication
-        headers = {
-            "Content-Type": "application/json",
-            "airefinery_account": self.account,
-            "sdk_version": __version__,
-            "Authorization": f"Bearer {self.api_key}",
-        }
+        headers = get_base_headers(
+            self.api_key,
+            extra_headers={
+                "airefinery_account": self.account,
+            },
+        )
 
         # Determine the base URL
         base_url = f"{self.base_url}/{self.download_suffix}"
@@ -408,12 +398,12 @@ class AsyncDistillerClient:
         string_check(project)
         string_check(uuid)
 
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.api_key}",
-            "airefinery_account": self.account,
-            "sdk_version": __version__,
-        }
+        headers = get_base_headers(
+            self.api_key,
+            extra_headers={
+                "airefinery_account": self.account,
+            },
+        )
 
         if project_version:
             # Directly load the versioned project
@@ -533,7 +523,7 @@ class AsyncDistillerClient:
                     # If agent_executor is already a dict, leave it unchanged
                     pass
 
-            if agent_class in get_all_exeecutor_agents():
+            if agent_class in get_all_executor_agents():
                 # This agent requires an executor
                 # Create the executor wrapper for the agent
                 self.executor_dict[agent_name] = get_executor(

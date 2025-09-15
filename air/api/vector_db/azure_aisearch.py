@@ -15,7 +15,6 @@ from tenacity import (
     wait_random_exponential,
 )
 
-from air import auth
 from air.api.vector_db.base_vectordb import BaseVectorDB, VectorDBConfig
 from air.embeddings import EmbeddingsClient
 
@@ -95,7 +94,6 @@ class AzureAISearch(BaseVectorDB):
                     model=embedding_model,
                     encoding_format="float",
                     extra_body={"input_type": "query"},
-                    extra_headers={"airefinery_account": auth.account},
                 )
                 .data[0]
                 .embedding

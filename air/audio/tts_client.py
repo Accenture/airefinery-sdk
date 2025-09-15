@@ -17,10 +17,14 @@ from typing import Any, AsyncGenerator
 import aiohttp
 import requests
 
-from air import __version__
+from air import BASE_URL, __version__
 from air.types.audio import TTSResponse
+from air.utils import get_base_headers
 
 logger = logging.getLogger(__name__)
+
+
+ENDPOINT_SPEECH = "{base_url}/v1/audio/speech"
 
 
 class StreamingResponse:
@@ -145,10 +149,13 @@ class AsyncTTSClient:  # pylint: disable=too-few-public-methods
     - with_streaming_response.create(): Yields audio chunks (streaming mode)
     """
 
+    endpoint_speech = "{base_url}/audio/speech"
+
     def __init__(
         self,
-        base_url: str,
         api_key: str,
+        *,
+        base_url: str = BASE_URL,
         default_headers: dict[str, str] | None = None,
     ):
         """Initialize the TTS client.
@@ -193,7 +200,7 @@ class AsyncTTSClient:  # pylint: disable=too-few-public-methods
         Raises:
             aiohttp.ClientError: If network request fails.
         """
-        endpoint = f"{self.base_url}/audio/speech"
+        endpoint = ENDPOINT_SPEECH.format(base_url=self.base_url)
         payload = {
             "model": model,
             "input": input,
@@ -208,12 +215,9 @@ class AsyncTTSClient:  # pylint: disable=too-few-public-methods
             payload.update(extra_body)
 
         # Start with built-in auth/JSON headers
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-            "Accept": "application/octet-stream",
-            "sdk_version": __version__,
-        }
+        headers = get_base_headers(
+            self.api_key, extra_headers={"Accept": "application/octet-stream"}
+        )
         # Merge in default_headers
         headers.update(self.default_headers)
         # Merge in extra_headers (overwrites if collision)
@@ -301,7 +305,7 @@ class AsyncTTSClientWithStreamingResponse:
         Raises:
             aiohttp.ClientError: If network request fails.
         """
-        endpoint = f"{self._client.base_url}/audio/speech"
+        endpoint = ENDPOINT_SPEECH.format(base_url=self._client.base_url)
         payload = {
             "model": model,
             "input": input,
@@ -316,11 +320,8 @@ class AsyncTTSClientWithStreamingResponse:
             payload.update(extra_body)
 
         # Start with built-in auth/JSON headers
-        headers = {
-            "Authorization": f"Bearer {self._client.api_key}",
-            "Content-Type": "application/json",
-            "sdk_version": __version__,
-        }
+        headers = get_base_headers(self._client.api_key)
+
         # Merge in default_headers
         headers.update(self._client.default_headers)
         # Merge in extra_headers (overwrites if collision)
@@ -365,8 +366,9 @@ class TTSClient:  # pylint: disable=too-few-public-methods
 
     def __init__(
         self,
-        base_url: str,
         api_key: str,
+        *,
+        base_url: str = BASE_URL,
         default_headers: dict[str, str] | None = None,
     ):
         self.base_url = base_url
@@ -404,7 +406,7 @@ class TTSClient:  # pylint: disable=too-few-public-methods
         Raises:
             requests.RequestException: If network request fails.
         """
-        endpoint = f"{self.base_url}/audio/speech"
+        endpoint = ENDPOINT_SPEECH.format(base_url=self.base_url)
         payload = {
             "model": model,
             "input": input,
@@ -419,12 +421,9 @@ class TTSClient:  # pylint: disable=too-few-public-methods
             payload.update(extra_body)
 
         # Start with built-in auth/JSON headers
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-            "Accept": "application/octet-stream",
-            "sdk_version": __version__,
-        }
+        headers = get_base_headers(
+            self.api_key, extra_headers={"Accept": "application/octet-stream"}
+        )
         # Merge in default_headers
         headers.update(self.default_headers)
 
@@ -509,7 +508,7 @@ class TTSClientWithStreamingResponse:
         Raises:
             requests.RequestException: If network request fails.
         """
-        endpoint = f"{self._client.base_url}/audio/speech"
+        endpoint = ENDPOINT_SPEECH.format(base_url=self._client.base_url)
         payload = {
             "model": model,
             "input": input,
@@ -524,11 +523,8 @@ class TTSClientWithStreamingResponse:
             payload.update(extra_body)
 
         # Start with built-in auth/JSON headers
-        headers = {
-            "Authorization": f"Bearer {self._client.api_key}",
-            "Content-Type": "application/json",
-            "sdk_version": __version__,
-        }
+        headers = get_base_headers(self._client.api_key)
+
         # Merge in default_headers
         headers.update(self._client.default_headers)
         # Merge in extra_headers (overwrites if collision)

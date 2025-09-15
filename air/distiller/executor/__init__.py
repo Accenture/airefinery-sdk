@@ -78,7 +78,7 @@ def get_executor(agent_class: str, *args, **kwargs):
     return executor_cls(*args, **kwargs)
 
 
-def get_all_exeecutor_agents():
+def get_all_executor_agents():
     """
     Return a list (or set) of all possible agent_class keys.
     These are the recognized executors you could potentially instantiate.

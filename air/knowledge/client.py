@@ -9,6 +9,7 @@ Includes:
 import asyncio
 from functools import cached_property
 
+from air import BASE_URL
 from air.knowledge.document_processing_client import DocumentProcessingClient
 
 
@@ -19,8 +20,9 @@ class AsyncKnowledgeClient:
 
     def __init__(
         self,
-        base_url: str,
         api_key: str,
+        *,
+        base_url: str = BASE_URL,
         default_headers: dict[str, str] | None = None,
     ):
         """
@@ -75,8 +77,9 @@ class KnowledgeClient:
 
     def __init__(
         self,
-        base_url: str,
         api_key: str,
+        *,
+        base_url: str = BASE_URL,
         default_headers: dict[str, str] | None = None,
     ):
         """
@@ -90,7 +93,9 @@ class KnowledgeClient:
         self.base_url = base_url
         self.api_key = api_key
         self.default_headers = default_headers
-        self.document_processing = DocumentProcessingClient(base_url=self.base_url)
+        self.document_processing = DocumentProcessingClient(
+            api_key=self.api_key, base_url=self.base_url
+        )
 
     def get_graph(self):
         """

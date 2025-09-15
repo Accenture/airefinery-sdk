@@ -28,7 +28,8 @@ import aiohttp
 import requests
 from pydantic import TypeAdapter
 
-from air import __version__
+from air import BASE_URL, __version__
+from air.audio.tts_client import ENDPOINT_SPEECH
 from air.types import ASRResponse
 from air.types.audio import (
     APIResponse,
@@ -40,6 +41,9 @@ from air.types.audio import (
     Stream,
     TranscriptionStreamEvent,
 )
+from air.utils import get_base_headers
+
+ENDPOINT_TRANSCRIPTIONS = "{base_url}/v1/audio/transcriptions"
 
 
 class AsyncASRClient:  # pylint: disable=too-few-public-methods
@@ -52,8 +56,9 @@ class AsyncASRClient:  # pylint: disable=too-few-public-methods
 
     def __init__(
         self,
-        base_url: str,
         api_key: str,
+        *,
+        base_url: str = BASE_URL,
         default_headers: dict[str, str] | None = None,
     ):
         self.base_url = base_url
@@ -112,7 +117,7 @@ class AsyncASRClient:  # pylint: disable=too-few-public-methods
             ASRResponse: The response containing transcription results
         """
 
-        endpoint = f"{self.base_url}/audio/transcriptions"
+        endpoint = ENDPOINT_TRANSCRIPTIONS.format(base_url=self.base_url)
 
         # build payload
         form = aiohttp.FormData()
@@ -149,10 +154,8 @@ class AsyncASRClient:  # pylint: disable=too-few-public-methods
             form.add_field(k, str(v))
 
         # Start with built-in auth/JSON headers
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "sdk_version": __version__,
-        }
+        headers = get_base_headers(self.api_key)
+
         # Merge in default_headers
         headers.update(self.default_headers)
         # Merge in extra_headers (overwrites if collision)
@@ -261,7 +264,9 @@ class AsyncTranscriptionsWithStreamingResponse:  # pylint: disable=too-few-publi
               - AsyncAPIResponse[AsyncStream[TranscriptionStreamEvent]] for streaming mode.
         """
 
-        endpoint = f"{self._transcriptions.base_url}/audio/transcriptions"
+        endpoint = ENDPOINT_TRANSCRIPTIONS.format(
+            base_url=self._transcriptions.base_url
+        )
 
         # build payload
         form = aiohttp.FormData()
@@ -298,10 +303,8 @@ class AsyncTranscriptionsWithStreamingResponse:  # pylint: disable=too-few-publi
             form.add_field(k, str(v))
 
         # Start with built-in auth/JSON headers
-        headers = {
-            "Authorization": f"Bearer {self._transcriptions.api_key}",
-            "sdk_version": __version__,
-        }
+        headers = get_base_headers(self._transcriptions.api_key)
+
         # Merge in default_headers
         headers.update(self._transcriptions.default_headers)
         # Merge in extra_headers (overwrites if collision)
@@ -371,8 +374,9 @@ class ASRClient:  # pylint: disable=too-few-public-methods
 
     def __init__(
         self,
-        base_url: str,
         api_key: str,
+        *,
+        base_url: str,
         default_headers: dict[str, str] | None = None,
     ):
         self.base_url = base_url
@@ -424,7 +428,8 @@ class ASRClient:  # pylint: disable=too-few-public-methods
             ASRResponse: The response containing transcription results
         """
 
-        endpoint = f"{self.base_url}/audio/transcriptions"
+        endpoint = ENDPOINT_TRANSCRIPTIONS.format(base_url=self.base_url)
+
         payload = {
             "model": model,
             "chunking_strategy": (
@@ -453,10 +458,8 @@ class ASRClient:  # pylint: disable=too-few-public-methods
         )
 
         # Start with built-in auth/JSON headers
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "sdk_version": __version__,
-        }
+        headers = get_base_headers(self.api_key)
+
         # Merge in default_headers
         headers.update(self.default_headers)
 
@@ -553,7 +556,10 @@ class TranscriptionsWithStreamingResponse:  # pylint: disable=too-few-public-met
               - APIResponse[ASRResponse] for non-streaming mode.
               - APIResponse[Stream[TranscriptionStreamEvent]] for streaming mode.
         """
-        endpoint = f"{self._transcriptions.base_url}/audio/transcriptions"
+        endpoint = ENDPOINT_TRANSCRIPTIONS.format(
+            base_url=self._transcriptions.base_url
+        )
+
         payload = {
             "model": model,
             "chunking_strategy": (
@@ -582,10 +588,8 @@ class TranscriptionsWithStreamingResponse:  # pylint: disable=too-few-public-met
         )
 
         # Start with built-in auth/JSON headers
-        headers = {
-            "Authorization": f"Bearer {self._transcriptions.api_key}",
-            "sdk_version": __version__,
-        }
+        headers = get_base_headers(self._transcriptions.api_key)
+
         # Merge in default_headers
         headers.update(self._transcriptions.default_headers)
 
