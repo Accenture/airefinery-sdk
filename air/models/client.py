@@ -41,8 +41,11 @@ Example usage:
 import aiohttp
 import requests
 
-from air import __version__
+from air import BASE_URL, __version__
 from air.types import AsyncPage, Model, SyncPage
+from air.utils import get_base_headers
+
+ENDPOINT_MODELS = "{base_url}/v1/models"
 
 
 class ModelsClient:  # pylint: disable=too-few-public-methods
@@ -55,17 +58,19 @@ class ModelsClient:  # pylint: disable=too-few-public-methods
 
     def __init__(
         self,
-        base_url: str,
         api_key: str,
+        *,
+        base_url: str = BASE_URL,
         default_headers: dict[str, str] | None = None,
     ):
         """
         Initializes the synchronous models client.
 
         Args:
+            api_key (str): API key for authorization.
+
             base_url (str): Base URL of the API (e.g., "https://api.airefinery.accenture.com").
 
-            api_key (str): API key for authorization.
             default_headers (dict[str, str] | None): Headers that apply to
                 every request from this client.
         """
@@ -95,15 +100,11 @@ class ModelsClient:  # pylint: disable=too-few-public-methods
         Returns:
             SyncPage[Model]: A Pydantic model containing the list of models.
         """
-        endpoint = f"{self.base_url}/models"
+        endpoint = ENDPOINT_MODELS.format(base_url=self.base_url)
         payload = kwargs
 
         # Built-in authorization/JSON headers
-        headers = {
-            "Content-Type": "application/json",
-            "sdk_version": __version__,
-            "Authorization": f"Bearer {self.api_key}",
-        }
+        headers = get_base_headers(self.api_key)
         # Merge default_headers
         headers.update(self.default_headers)
         # Merge request-specific extra_headers last
@@ -132,17 +133,17 @@ class AsyncModelsClient:  # pylint: disable=too-few-public-methods
 
     def __init__(
         self,
-        base_url: str,
         api_key: str,
+        *,
+        base_url: str,
         default_headers: dict[str, str] | None = None,
     ):
         """
         Initializes the asynchronous models client.
 
         Args:
-            base_url (str): Base URL of the API (e.g., "https://api.airefinery.accenture.com").
-
             api_key (str): API key for authorization.
+            base_url (str): Base URL of the API (e.g., "https://api.airefinery.accenture.com").
             default_headers (dict[str, str] | None): Headers that apply to
                 every request from this client.
         """
@@ -172,14 +173,12 @@ class AsyncModelsClient:  # pylint: disable=too-few-public-methods
         Returns:
             AsyncPage[Model]: A Pydantic model containing the list of models.
         """
-        endpoint = f"{self.base_url}/models"
+        endpoint = ENDPOINT_MODELS.format(base_url=self.base_url)
+
         payload = kwargs
 
-        headers = {
-            "Content-Type": "application/json",
-            "sdk_version": __version__,
-            "Authorization": f"Bearer {self.api_key}",
-        }
+        headers = get_base_headers(self.api_key)
+
         headers.update(self.default_headers)
         if extra_headers:
             headers.update(extra_headers)

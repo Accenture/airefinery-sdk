@@ -11,7 +11,7 @@ from typing import Dict, List, Union
 
 import requests
 
-from air import __base_url__, __version__, auth
+from air import BASE_URL, __version__
 from air.api.vector_db import VectorDBRegistry
 from air.knowledge.pipeline import (
     ChunkingRegistry,
@@ -19,6 +19,7 @@ from air.knowledge.pipeline import (
     VectorDBUpload,
 )
 from air.types import Document, DocumentProcessingConfig
+from air.utils import get_base_headers
 
 logger = logging.getLogger(__name__)
 
@@ -30,21 +31,22 @@ class DocumentProcessingClient:
     """
 
     # Define API endpoint for extraction
-    parse_document_suffix = "inference/document-extract"
+    parse_document_suffix = "v1/document-extract"
 
     def __init__(
         self,
+        api_key: str,
         *,
-        base_url: str = "",
+        base_url: str = BASE_URL,
     ) -> None:
         """
         Initialize the DocumentProcessingClient with authentication details.
 
         Args:
-            base_url (str, optional): Base URL for the API. Defaults to "".
+            base_url (str, optional): Base URL for the API. Defaults to air.BASE_URL.
         """
-        # Use the provided base URL or the default one
-        self.base_url = __base_url__ if base_url == "" else base_url
+        self.api_key = api_key
+        self.base_url = base_url
 
     def create_project(self, doc_process_config: DocumentProcessingConfig):
         """
@@ -70,11 +72,14 @@ class DocumentProcessingClient:
                     not found in the Chunking registry"
             )
         self.chunker = selected_chunker(doc_process_config.chunking_config)
+
         # init embedder
         self.embedder = Embedding(
             embedding_config=doc_process_config.embedding_config,
             base_url=self.base_url,
+            api_key=self.api_key,
         )
+
         # init uploader
         if not VectorDBRegistry.get(doc_process_config.vectordb_config.type):
             raise KeyError(
@@ -85,6 +90,7 @@ class DocumentProcessingClient:
             upload_config=doc_process_config.upload_config,
             vectordb_config=doc_process_config.vectordb_config,
         )
+
         # init executor dictionary
         self.exec_dict = {
             "chunk": functools.partial(self.chunker.run),
@@ -149,12 +155,7 @@ class DocumentProcessingClient:
         }
 
         # Prepare the headers with the API key for authentication
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {auth.get_access_token()}",
-            "sdk_version": __version__,
-            "airefinery_account": auth.account,
-        }
+        headers = get_base_headers(api_key=self.api_key)
 
         # Determine the base URL
         base_url = f"{self.base_url}/{self.parse_document_suffix}"

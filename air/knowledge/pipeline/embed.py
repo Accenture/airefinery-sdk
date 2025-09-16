@@ -10,7 +10,7 @@ from tenacity import (
 )
 from tqdm import tqdm
 
-from air import __base_url__, auth
+from air import BASE_URL
 from air.embeddings.client import EmbeddingsClient
 from air.types import ClientConfig, Document, EmbeddingConfig
 
@@ -29,19 +29,14 @@ class Embedding:
     Extends Executor to support data embedding functions.
     """
 
-    def __init__(self, embedding_config: EmbeddingConfig, base_url: str):
+    def __init__(
+        self, embedding_config: EmbeddingConfig, api_key: str, base_url: str = BASE_URL
+    ):
         self.model = embedding_config.model
         self.batch_size = embedding_config.batch_size
         self.max_workers = embedding_config.max_workers
         self.base_url = base_url
-        self.client_config = ClientConfig(**auth.openai(base_url=self.base_url))
-        self.client = EmbeddingsClient(**dict(self.client_config))
-
-    def refresh_client_access_token(self):
-        """
-        Refresh the access token for the OpenAI client.
-        """
-        self.client_config.api_key = auth.get_access_token()
+        self.client_config = ClientConfig(api_key=api_key, base_url=base_url)
         self.client = EmbeddingsClient(**dict(self.client_config))
 
     @retry(
@@ -50,7 +45,6 @@ class Embedding:
     )
     def generate_embeddings(self, data: List[Document]) -> Tuple[List[Document], bool]:
         """Function to upload data to Azure"""
-        self.refresh_client_access_token()
         embeddings = []
         status = True
         texts = [doc.elements[0].text for doc in data]
@@ -60,7 +54,6 @@ class Embedding:
                 model=self.model,
                 encoding_format="float",
                 extra_body={"input_type": "passage"},
-                extra_headers={"airefinery_account": auth.account},
             )
             embeddings = [data.embedding for data in response.data]
             if None in embeddings:

@@ -9,7 +9,6 @@ from typing import List, Union
 
 import aiofiles
 
-from air import __base_url__
 from air.knowledge.graph_visualization import GraphProcessing
 from air.knowledge.knowledge_graph import KnowledgeGraphRegistry
 from air.types import Document, KnowledgeGraphConfig

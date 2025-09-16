@@ -41,8 +41,11 @@ Example usage:
 import aiohttp
 import requests
 
-from air import __version__
+from air import BASE_URL, __version__
 from air.types import CreateEmbeddingResponse
+from air.utils import get_base_headers
+
+ENDPOINT_EMBEDDINGS = "{base_url}/v1/embeddings"
 
 
 class EmbeddingsClient:  # pylint: disable=too-few-public-methods
@@ -55,8 +58,9 @@ class EmbeddingsClient:  # pylint: disable=too-few-public-methods
 
     def __init__(
         self,
-        base_url: str,
         api_key: str,
+        *,
+        base_url: str = BASE_URL,
         default_headers: dict[str, str] | None = None,
     ):
         """
@@ -101,15 +105,13 @@ class EmbeddingsClient:  # pylint: disable=too-few-public-methods
             CreateEmbeddingResponse: The parsed Pydantic model containing the embeddings.
         """
 
-        endpoint = f"{self.base_url}/embeddings"
+        endpoint = ENDPOINT_EMBEDDINGS.format(base_url=self.base_url)
+
         payload = {"model": model, "input": input, "extra_body": extra_body, **kwargs}
 
         # Base authorization and JSON headers.
-        headers = {
-            "Content-Type": "application/json",
-            "sdk_version": __version__,
-            "Authorization": f"Bearer {self.api_key}",
-        }
+        headers = get_base_headers(self.api_key)
+
         # Merge in default headers
         headers.update(self.default_headers)
         # Merge in request-specific headers last, overwriting if a key collides
@@ -134,8 +136,9 @@ class AsyncEmbeddingsClient:  # pylint: disable=too-few-public-methods
 
     def __init__(
         self,
-        base_url: str,
         api_key: str,
+        *,
+        base_url: str = BASE_URL,
         default_headers: dict[str, str] | None = None,
     ):
         """
@@ -178,15 +181,12 @@ class AsyncEmbeddingsClient:  # pylint: disable=too-few-public-methods
         Returns:
             CreateEmbeddingResponse: The parsed Pydantic model containing the embeddings.
         """
-        endpoint = f"{self.base_url}/embeddings"
+        endpoint = ENDPOINT_EMBEDDINGS.format(base_url=self.base_url)
+
+        headers = get_base_headers(self.api_key)
+
         payload = {"model": model, "input": input, "extra_body": extra_body, **kwargs}
 
-        # Base authorization and JSON headers.
-        headers = {
-            "Content-Type": "application/json",
-            "sdk_version": __version__,
-            "Authorization": f"Bearer {self.api_key}",
-        }
         # Merge in default headers.
         headers.update(self.default_headers)
         # Merge in request-specific headers last, overwriting if a key collides

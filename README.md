@@ -118,13 +118,13 @@ utility_agents:
 
 ```
 
-3. Create you first DistillerClient
+3. Create you first AIRefinery client
 
-[`DistillerClient`](https://sdk.airefinery.accenture.com/api-reference/distiller-index/) API creates a distiller client. This client will interface with the AI Refinery™ service to run your project. Below is a function that sets up the distiller client. Here's what it does:  
+[`AsyncAIRefinery`](https://sdk.airefinery.accenture.com/api-reference/distiller-index/) API creates a distiller client. This client will interface with the AI Refinery™ service to run your project. Below is a function that sets up the distiller client. Here's what it does:  
 
-- Authenticate you using `AIREFINERY_ACCOUNT` and `AIREFINERY_API_KEY` from your os envenvironment variables.
+- Authenticate using `AIREFINERY_API_KEY` from your os envenvironment variables.
 - Defines the `simple_agent` function that will cover the scope of the `Assistant Agent` using AI Refinery™ Inference-as-a-service.  
-- Instantiates a `DistillerClient`.  
+- Instantiates a `AsyncAIRefinery`.  
 - Creates a project named `my_first_project` using the configuration specified in the `example.yaml` file.
 - Adds the `simple_agent` to the `executor_dict` under the name `Assistant Agent`.
 - Runs the project in `interactive` mode.  
@@ -133,20 +133,14 @@ utility_agents:
 import asyncio
 import os
 
-from air import login, DistillerClient, AsyncAIRefinery
+from air import AsyncAIRefinery
 
 API_KEY =str(os.getenv("AIREFINERY_API_KEY"))
 
-auth = login(
-    account=str(os.getenv("AIREFINERY_ACCOUNT")),
-    api_key=API_KEY,
-)
-
 async def simple_agent(query: str):
-    global auth
 
     prompt = "You are an AI assistant that helps users navigate their projects."
-    client = AsyncAIRefinery(**auth.openai())
+    client = AsyncAIRefinery(api_key=API_KEY)
 
     response = await client.chat.completions.create(
         messages=[{"role": "user", "content": prompt}],

@@ -1,10 +1,4 @@
-def compliance_banner() -> None:
-    """
-    Notify the user of AIRefinery SDK about the authorized access only consent
-    """
-    print(
-        """
-***********************************************************************
+BANNER = """***********************************************************************
 *                  NOTICE: AUTHORIZED ACCESS ONLY                     *
 ***********************************************************************
 By accessing AI Refinery an AI multi-agent commercial system
@@ -20,9 +14,16 @@ by Accenture, you acknowledge and consent to the following:
     - Policy Adherence: All authorized use must strictly comply
       with all Accenture, AI Standards, Security Standards,
       and Organizational Policies.
-      
+
 Continued use of this system constitutes explicit consent
-    to monitoring, and compliance enforcement. 
-*********************************************************************** 
+    to monitoring, and compliance enforcement.
+***********************************************************************
 """
-    )
+
+
+def print_compliance_banner() -> None:
+    """
+    Notify the user of AIRefinery SDK about the authorized access only consent.
+    """
+    global BANNER
+    print(BANNER)

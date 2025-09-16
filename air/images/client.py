@@ -15,9 +15,13 @@ All responses are validated using Pydantic models (`ImagesResponse`,
 import aiohttp
 import requests
 
-from air import __version__
+from air import BASE_URL, __version__
 from air.types import ImagesResponse, SegmentationResponse
 from air.types.constants import DEFAULT_TIMEOUT
+from air.utils import get_base_headers
+
+ENDPOINT_IMAGE_GENERATIONS = "{base_url}/v1/images/generations"
+ENDPOINT_IMAGE_SEGMENTATIONS = "{base_url}/v1/images/segmentations"
 
 
 class ImagesClient:
@@ -30,8 +34,9 @@ class ImagesClient:
 
     def __init__(
         self,
-        base_url: str,
         api_key: str,
+        *,
+        base_url: str = BASE_URL,
         default_headers: dict[str, str] | None = None,
     ):
         """
@@ -81,7 +86,7 @@ class ImagesClient:
         """
         effective_timeout = timeout if timeout is not None else DEFAULT_TIMEOUT
 
-        endpoint = f"{self.base_url}/images/generations"
+        endpoint = ENDPOINT_IMAGE_GENERATIONS.format(base_url=self.base_url)
 
         payload = {
             "model": model,
@@ -92,11 +97,8 @@ class ImagesClient:
         }
 
         # Base authorization and JSON headers.
-        headers = {
-            "Content-Type": "application/json",
-            "sdk_version": __version__,
-            "Authorization": f"Bearer {self.api_key}",
-        }
+        headers = get_base_headers(self.api_key)
+
         # Merge in default headers
         headers.update(self.default_headers)
         # Merge in request-specific headers last, overwriting if a key collides
@@ -141,7 +143,7 @@ class ImagesClient:
         """
         effective_timeout = timeout if timeout is not None else DEFAULT_TIMEOUT
 
-        endpoint = f"{self.base_url}/images/segmentations"
+        endpoint = ENDPOINT_IMAGE_SEGMENTATIONS.format(base_url=self.base_url)
 
         payload = {
             "model": model,
@@ -151,11 +153,8 @@ class ImagesClient:
             **kwargs,
         }
 
-        headers = {
-            "Content-Type": "application/json",
-            "sdk_version": __version__,
-            "Authorization": f"Bearer {self.api_key}",
-        }
+        headers = get_base_headers(self.api_key)
+
         headers.update(self.default_headers)
         if extra_headers:
             headers.update(extra_headers)
@@ -177,8 +176,9 @@ class AsyncImagesClient:
 
     def __init__(
         self,
-        base_url: str,
         api_key: str,
+        *,
+        base_url: str,
         default_headers: dict[str, str] | None = None,
     ):
         """
@@ -228,7 +228,7 @@ class AsyncImagesClient:
         """
         effective_timeout = DEFAULT_TIMEOUT if timeout is None else timeout
 
-        endpoint = f"{self.base_url}/images/generations"
+        endpoint = ENDPOINT_IMAGE_GENERATIONS.format(base_url=self.base_url)
 
         payload = {
             "model": model,
@@ -239,11 +239,8 @@ class AsyncImagesClient:
         }
 
         # Base authorization and JSON headers.
-        headers = {
-            "Content-Type": "application/json",
-            "sdk_version": __version__,
-            "Authorization": f"Bearer {self.api_key}",
-        }
+        headers = get_base_headers(self.api_key)
+
         # Merge in default headers.
         headers.update(self.default_headers)
         # Merge in request-specific headers last, overwriting if a key collides
@@ -289,7 +286,7 @@ class AsyncImagesClient:
         """
         effective_timeout = DEFAULT_TIMEOUT if timeout is None else timeout
 
-        endpoint = f"{self.base_url}/images/segmentations"
+        endpoint = ENDPOINT_IMAGE_SEGMENTATIONS.format(base_url=self.base_url)
 
         payload = {
             "model": model,
@@ -299,11 +296,8 @@ class AsyncImagesClient:
             **kwargs,
         }
 
-        headers = {
-            "Content-Type": "application/json",
-            "sdk_version": __version__,
-            "Authorization": f"Bearer {self.api_key}",
-        }
+        headers = get_base_headers(self.api_key)
+
         headers.update(self.default_headers)
         if extra_headers:
             headers.update(extra_headers)

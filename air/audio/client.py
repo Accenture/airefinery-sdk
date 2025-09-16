@@ -3,6 +3,7 @@ A module that defines Audio clients (synchronous and asynchronous)
 to interact with sub-clients such as asr and tts.
 """
 
+from air import BASE_URL
 from air.audio.asr_client import ASRClient, AsyncASRClient
 from air.audio.tts_client import AsyncTTSClient, TTSClient
 
@@ -16,7 +17,8 @@ class AsyncAudio:  # pylint: disable=too-many-instance-attributes,too-few-public
     def __init__(
         self,
         api_key: str,
-        base_url: str,
+        *,
+        base_url: str = BASE_URL,
         default_headers: dict[str, str] | None = None,
         **kwargs
     ):
@@ -60,7 +62,8 @@ class Audio:  # pylint: disable=too-many-instance-attributes,too-few-public-meth
     def __init__(
         self,
         api_key: str,
-        base_url: str,
+        *,
+        base_url: str = BASE_URL,
         default_headers: dict[str, str] | None = None,
         **kwargs
     ):

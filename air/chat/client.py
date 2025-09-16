@@ -45,8 +45,11 @@ Example usage:
 import aiohttp
 import requests
 
-from air import __version__
+from air import BASE_URL, __version__
 from air.types import ChatCompletion
+from air.utils import get_base_headers
+
+ENDPOINT_COMPLETIONS = "{base_url}/v1/chat/completions"
 
 
 class ChatCompletionsClient:  # pylint: disable=too-few-public-methods
@@ -59,8 +62,9 @@ class ChatCompletionsClient:  # pylint: disable=too-few-public-methods
 
     def __init__(
         self,
-        base_url: str,
         api_key: str,
+        *,
+        base_url: str = BASE_URL,
         default_headers: dict[str, str] | None = None,
     ):
         """
@@ -106,7 +110,8 @@ class ChatCompletionsClient:  # pylint: disable=too-few-public-methods
         Returns:
             ChatCompletion: The parsed completion object.
         """
-        endpoint = f"{self.base_url}/chat/completions"
+        endpoint = ENDPOINT_COMPLETIONS.format(base_url=self.base_url)
+
         payload = {
             "model": model,
             "messages": messages,
@@ -115,11 +120,8 @@ class ChatCompletionsClient:  # pylint: disable=too-few-public-methods
         }
 
         # Start with built-in auth/JSON headers
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-            "sdk_version": __version__,
-        }
+        headers = get_base_headers(self.api_key)
+
         # Merge in default_headers
         headers.update(self.default_headers)
         # Merge in extra_headers (overwrites if collision)
@@ -146,8 +148,9 @@ class ChatClient:  # pylint: disable=too-few-public-methods
 
     def __init__(
         self,
-        base_url: str,
         api_key: str,
+        *,
+        base_url: str = BASE_URL,
         default_headers: dict[str, str] | None = None,
     ):
         """
@@ -177,16 +180,17 @@ class AsyncChatCompletionsClient:  # pylint: disable=too-few-public-methods
 
     def __init__(
         self,
-        base_url: str,
         api_key: str,
+        *,
+        base_url: str = BASE_URL,
         default_headers: dict[str, str] | None = None,
     ):
         """
         Initializes the asynchronous completions client.
 
         Args:
-            base_url (str): Base URL of the API, e.g. "https://api.airefinery.accenture.com".
 
+            base_url (str): Base URL of the API, e.g. "https://api.airefinery.accenture.com".
             api_key (str): API key for authorization.
             default_headers (dict[str, str] | None): Headers included in every request
                 made by this client, e.g., {"X-Client-Version": "1.2.3"}.
@@ -223,7 +227,8 @@ class AsyncChatCompletionsClient:  # pylint: disable=too-few-public-methods
         Returns:
             ChatCompletion: The parsed completion object.
         """
-        endpoint = f"{self.base_url}/chat/completions"
+        endpoint = ENDPOINT_COMPLETIONS.format(base_url=self.base_url)
+
         payload = {
             "model": model,
             "messages": messages,
@@ -232,11 +237,8 @@ class AsyncChatCompletionsClient:  # pylint: disable=too-few-public-methods
         }
 
         # Start with built-in auth/JSON headers
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-            "sdk_version": __version__,
-        }
+        headers = get_base_headers(self.api_key)
+
         # Merge in default_headers
         headers.update(self.default_headers)
         # Merge in extra_headers
@@ -260,8 +262,9 @@ class AsyncChatClient:  # pylint: disable=too-few-public-methods
 
     def __init__(
         self,
-        base_url: str,
         api_key: str,
+        *,
+        base_url: str = BASE_URL,
         default_headers: dict[str, str] | None = None,
     ):
         """

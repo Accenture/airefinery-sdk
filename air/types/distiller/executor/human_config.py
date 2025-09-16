@@ -14,9 +14,18 @@ class FeedbackFieldConfig(BaseModel):
         required (bool): Whether the field is mandatory in the feedback.
     """
 
-    type: str
-    description: str
-    required: bool
+    type: str = Field(
+        default="",
+        description="The type of the field.",
+    )
+    description: str = Field(
+        default="",
+        description="The description of the field.",
+    )
+    required: bool = Field(
+        default=True,
+        description="Whether the field is mandatory in the feedback",
+    )
 
 
 class HumanAgentConfig(BaseModel):

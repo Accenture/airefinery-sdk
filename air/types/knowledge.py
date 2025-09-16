@@ -1,8 +1,8 @@
-from typing import List, Literal, Optional
+from typing import List, Literal
 
 from pydantic import BaseModel, Field
 
-from air import __base_url__
+from air import BASE_URL
 from air.api.vector_db.base_vectordb import VectorDBConfig
 
 
@@ -68,9 +68,7 @@ class ClientConfig(BaseModel):
     Configuration for the OpenAI client.
     """
 
-    base_url: str = Field(
-        default=__base_url__, description="Base URL for the OpenAI API"
-    )
+    base_url: str = Field(default=BASE_URL, description="Base URL for the OpenAI API")
     api_key: str = Field(..., description="API key for authentication")
     default_headers: dict = Field(
         default_factory=dict, description="Default headers for API requests"
