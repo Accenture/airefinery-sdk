@@ -2,7 +2,7 @@
 
 from setuptools import find_packages, setup
 
-VERSION = "1.16.0"
+VERSION = "1.17.1"
 
 
 setup(
@@ -23,6 +23,7 @@ setup(
         "presidio-anonymizer>=2.2.358",
         "mcp>=1.6.0",
         "aiofiles>=24.1.0",
+        "filelock>=3.15.3",
     ],
     include_package_data=True,
     entry_points={

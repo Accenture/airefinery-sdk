@@ -42,8 +42,9 @@ import aiohttp
 import requests
 
 from air import BASE_URL, __version__
+from air.auth.token_provider import TokenProvider
 from air.types import CreateEmbeddingResponse
-from air.utils import get_base_headers
+from air.utils import get_base_headers, get_base_headers_async
 
 ENDPOINT_EMBEDDINGS = "{base_url}/v1/embeddings"
 
@@ -58,7 +59,7 @@ class EmbeddingsClient:  # pylint: disable=too-few-public-methods
 
     def __init__(
         self,
-        api_key: str,
+        api_key: str | TokenProvider,
         *,
         base_url: str = BASE_URL,
         default_headers: dict[str, str] | None = None,
@@ -67,9 +68,13 @@ class EmbeddingsClient:  # pylint: disable=too-few-public-methods
         Initializes the synchronous embeddings client.
 
         Args:
+            api_key (str | TokenProvider): Credential that will be placed in the
+                ``Authorization`` header of every request.
+                * **str** – a raw bearer token / API key.
+                * **TokenProvider** – an object whose ``token()`` (and
+                  ``token_async()``) method returns a valid bearer token.  The
+                  client calls the provider automatically before each request.
             base_url (str): Base URL of the API (e.g., "https://api.airefinery.accenture.com").
-
-            api_key (str): API key for authorization.
             default_headers (dict[str, str] | None): Optional headers applied to every request.
         """
         self.base_url = base_url
@@ -136,7 +141,7 @@ class AsyncEmbeddingsClient:  # pylint: disable=too-few-public-methods
 
     def __init__(
         self,
-        api_key: str,
+        api_key: str | TokenProvider,
         *,
         base_url: str = BASE_URL,
         default_headers: dict[str, str] | None = None,
@@ -145,8 +150,13 @@ class AsyncEmbeddingsClient:  # pylint: disable=too-few-public-methods
         Initializes the asynchronous embeddings client.
 
         Args:
+            api_key (str | TokenProvider): Credential that will be placed in the
+                ``Authorization`` header of every request.
+                * **str** – a raw bearer token / API key.
+                * **TokenProvider** – an object whose ``token()`` (and
+                  ``token_async()``) method returns a valid bearer token.  The
+                  client calls the provider automatically before each request.
             base_url (str): Base URL of the API (e.g., "https://api.airefinery.accenture.com").
-            api_key (str): API key for authorization.
             default_headers (dict[str, str] | None): Optional headers applied to every request.
         """
         self.base_url = base_url
@@ -183,7 +193,7 @@ class AsyncEmbeddingsClient:  # pylint: disable=too-few-public-methods
         """
         endpoint = ENDPOINT_EMBEDDINGS.format(base_url=self.base_url)
 
-        headers = get_base_headers(self.api_key)
+        headers = await get_base_headers_async(self.api_key)
 
         payload = {"model": model, "input": input, "extra_body": extra_body, **kwargs}
 

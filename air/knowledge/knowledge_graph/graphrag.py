@@ -18,11 +18,8 @@ from graphrag.cli.initialize import initialize_project_at
 from graphrag.cli.query import _resolve_output_files
 from graphrag.config.enums import IndexingMethod, SearchMethod
 from graphrag.config.load_config import load_config
-from graphrag.logger.factory import LoggerFactory
 
-from air.knowledge.knowledge_graph.base_knowledge_graph import (
-    BaseKnowledgeGraph,
-)
+from air.knowledge.knowledge_graph.base_knowledge_graph import BaseKnowledgeGraph
 from air.types import KnowledgeGraphConfig
 from air.utils import secure_join
 
@@ -56,7 +53,6 @@ class GraphRAG(BaseKnowledgeGraph):
 
         super().__init__(graph_config=config)
         self.index_method = IndexingMethod.Standard
-        self.progress_logger = LoggerFactory().create_logger("none")
 
         # secure path validation for settings.yaml
         settings_path = secure_join(self.work_dir, "settings.yaml")
@@ -147,7 +143,6 @@ class GraphRAG(BaseKnowledgeGraph):
                 build_index_result = await api.build_index(
                     config=self.graph_config,
                     method=self.index_method,
-                    progress_logger=None,
                 )
         except Exception as e:
             logger.error("Exception occurred during knowledge graph build phase!")
@@ -216,7 +211,6 @@ class GraphRAG(BaseKnowledgeGraph):
                     config=self.graph_config,
                     method=self.index_method,
                     is_update_run=True,
-                    progress_logger=None,
                 )
         except Exception as e:
             logger.error("Exception occurred during knowledge graph update phase!")

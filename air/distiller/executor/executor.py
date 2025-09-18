@@ -1,11 +1,16 @@
 import asyncio
 import concurrent.futures
-import logging
-import inspect
 import functools
-from typing import Callable, Optional, Union, Dict
+import inspect
+import logging
+from typing import Callable, Dict, Optional, Union
 
 from air import __version__
+from air.types.distiller.client import (
+    DistillerMessageRequestArgs,
+    DistillerMessageRequestType,
+    DistillerOutgoingMessage,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -99,17 +104,17 @@ class Executor:
         res_content = str(result) if self.return_string else result
 
         # Send the result to send_queue
-        await self.send_queue.put(
-            {
-                "account": self.account,
-                "project": self.project,
-                "uuid": self.uuid,
-                "role": self.role,
-                "request_args": {"content": res_content},
-                "request_type": "executor",
-                "request_id": request_id,
-            }
+        request_args = DistillerMessageRequestArgs(content=res_content)
+        request = DistillerOutgoingMessage(
+            account=self.account,
+            project=self.project,
+            uuid=self.uuid,
+            role=self.role,
+            request_args=request_args,
+            request_type=DistillerMessageRequestType.EXECUTOR,
+            request_id=request_id,
         )
+        await self.send_queue.put(request)
 
         logger.debug("Result sent to send_queue.")
 

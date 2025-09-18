@@ -42,8 +42,9 @@ import aiohttp
 import requests
 
 from air import BASE_URL, __version__
+from air.auth.token_provider import TokenProvider
 from air.types import AsyncPage, Model, SyncPage
-from air.utils import get_base_headers
+from air.utils import get_base_headers, get_base_headers_async
 
 ENDPOINT_MODELS = "{base_url}/v1/models"
 
@@ -58,7 +59,7 @@ class ModelsClient:  # pylint: disable=too-few-public-methods
 
     def __init__(
         self,
-        api_key: str,
+        api_key: str | TokenProvider,
         *,
         base_url: str = BASE_URL,
         default_headers: dict[str, str] | None = None,
@@ -67,10 +68,14 @@ class ModelsClient:  # pylint: disable=too-few-public-methods
         Initializes the synchronous models client.
 
         Args:
-            api_key (str): API key for authorization.
+            api_key (str | TokenProvider): Credential that will be placed in the
+                ``Authorization`` header of every request.
+                * **str** – a raw bearer token / API key.
+                * **TokenProvider** – an object whose ``token()`` (and
+                  ``token_async()``) method returns a valid bearer token.  The
+                  client calls the provider automatically before each request.
 
             base_url (str): Base URL of the API (e.g., "https://api.airefinery.accenture.com").
-
             default_headers (dict[str, str] | None): Headers that apply to
                 every request from this client.
         """
@@ -133,7 +138,7 @@ class AsyncModelsClient:  # pylint: disable=too-few-public-methods
 
     def __init__(
         self,
-        api_key: str,
+        api_key: str | TokenProvider,
         *,
         base_url: str,
         default_headers: dict[str, str] | None = None,
@@ -142,7 +147,13 @@ class AsyncModelsClient:  # pylint: disable=too-few-public-methods
         Initializes the asynchronous models client.
 
         Args:
-            api_key (str): API key for authorization.
+            api_key (str | TokenProvider): Credential that will be placed in the
+                ``Authorization`` header of every request.
+                * **str** – a raw bearer token / API key.
+                * **TokenProvider** – an object whose ``token()`` (and
+                  ``token_async()``) method returns a valid bearer token.  The
+                  client calls the provider automatically before each request.
+
             base_url (str): Base URL of the API (e.g., "https://api.airefinery.accenture.com").
             default_headers (dict[str, str] | None): Headers that apply to
                 every request from this client.
@@ -177,7 +188,7 @@ class AsyncModelsClient:  # pylint: disable=too-few-public-methods
 
         payload = kwargs
 
-        headers = get_base_headers(self.api_key)
+        headers = await get_base_headers_async(self.api_key)
 
         headers.update(self.default_headers)
         if extra_headers:

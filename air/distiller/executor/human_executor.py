@@ -11,6 +11,11 @@ import logging
 from typing import Any, Callable, Dict, Union
 
 from air.distiller.executor.executor import Executor
+from air.types.distiller.client import (
+    DistillerMessageRequestType,
+    DistillerOutgoingMessage,
+    DistillerMessageRequestArgs,
+)
 from air.types.distiller.executor.human_config import HumanAgentConfig
 
 logger = logging.getLogger(__name__)
@@ -122,15 +127,16 @@ class HumanExecutor(Executor):
         user_input = await self.input_func(prompt_message)
         logger.info("User entered: '%s'", user_input)
 
-        response_payload = {
-            "account": self.account,
-            "project": self.project,
-            "uuid": self.uuid,
-            "role": self.role,
-            "request_id": request_id,
-            "request_type": "executor",
-            "request_args": {"content": user_input},
-        }
+        response_request_args = DistillerMessageRequestArgs(content=user_input)
+        response_payload = DistillerOutgoingMessage(
+            account=self.account,
+            project=self.project,
+            uuid=self.uuid,
+            role=self.role,
+            request_id=request_id,
+            request_type=DistillerMessageRequestType.EXECUTOR,
+            request_args=response_request_args,
+        )
 
         logger.info("Sending response payload for request_id: %s", request_id)
         await self.send_queue.put(response_payload)

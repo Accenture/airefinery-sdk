@@ -30,6 +30,7 @@ from pydantic import TypeAdapter
 
 from air import BASE_URL, __version__
 from air.audio.tts_client import ENDPOINT_SPEECH
+from air.auth.token_provider import TokenProvider
 from air.types import ASRResponse
 from air.types.audio import (
     APIResponse,
@@ -41,7 +42,7 @@ from air.types.audio import (
     Stream,
     TranscriptionStreamEvent,
 )
-from air.utils import get_base_headers
+from air.utils import get_base_headers, get_base_headers_async
 
 ENDPOINT_TRANSCRIPTIONS = "{base_url}/v1/audio/transcriptions"
 
@@ -56,7 +57,7 @@ class AsyncASRClient:  # pylint: disable=too-few-public-methods
 
     def __init__(
         self,
-        api_key: str,
+        api_key: str | TokenProvider,
         *,
         base_url: str = BASE_URL,
         default_headers: dict[str, str] | None = None,
@@ -154,7 +155,7 @@ class AsyncASRClient:  # pylint: disable=too-few-public-methods
             form.add_field(k, str(v))
 
         # Start with built-in auth/JSON headers
-        headers = get_base_headers(self.api_key)
+        headers = await get_base_headers_async(self.api_key)
 
         # Merge in default_headers
         headers.update(self.default_headers)
@@ -374,7 +375,7 @@ class ASRClient:  # pylint: disable=too-few-public-methods
 
     def __init__(
         self,
-        api_key: str,
+        api_key: str | TokenProvider,
         *,
         base_url: str,
         default_headers: dict[str, str] | None = None,

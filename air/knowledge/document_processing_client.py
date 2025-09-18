@@ -13,6 +13,7 @@ import requests
 
 from air import BASE_URL, __version__
 from air.api.vector_db import VectorDBRegistry
+from air.auth.token_provider import TokenProvider
 from air.knowledge.pipeline import (
     ChunkingRegistry,
     Embedding,
@@ -35,7 +36,7 @@ class DocumentProcessingClient:
 
     def __init__(
         self,
-        api_key: str,
+        api_key: str | TokenProvider,
         *,
         base_url: str = BASE_URL,
     ) -> None:

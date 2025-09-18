@@ -42,6 +42,10 @@ _AGENT_CLASS_MAP = {
         "air.distiller.executor.sap_executor",
         "SAPExecutor",
     ),
+    "DeepResearchAgent": (
+        "air.distiller.executor.deep_research_executor",
+        "DeepResearchExecutor",
+    ),
     "SnowflakeAgent": (
         "air.distiller.executor.snowflake_executor",
         "SnowflakeExecutor",

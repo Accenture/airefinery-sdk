@@ -5,6 +5,7 @@ to interact with sub-clients such as chat, embeddings, models, and distiller.
 """
 from air import BASE_URL
 from air.audio import AsyncAudio, Audio
+from air.auth import TokenProvider
 from air.chat import AsyncChatClient, ChatClient
 from air.distiller import AsyncDistillerClient
 from air.embeddings import AsyncEmbeddingsClient, EmbeddingsClient
@@ -72,7 +73,7 @@ class AsyncAIRefinery:  # pylint: disable=too-many-instance-attributes,too-few-p
 
     def __init__(
         self,
-        api_key: str,
+        api_key: str | TokenProvider,
         base_url: str = BASE_URL,
         default_headers: dict[str, str] | None = None,
         **kwargs
@@ -82,7 +83,12 @@ class AsyncAIRefinery:  # pylint: disable=too-many-instance-attributes,too-few-p
 
         Args:
 
-            api_key (str): Your API key or token for authenticated requests.
+            api_key (str | TokenProvider): Credential that will be placed in the
+                ``Authorization`` header of every request.
+                * **str** – a raw bearer token / API key.
+                * **TokenProvider** – an object whose ``token()`` (and
+                  ``token_async()``) method returns a valid bearer token.  The
+                  client calls the provider automatically before each request.
             base_url (str, optional): Base URL for your API endpoints.
                 Defaults to "https://api.airefinery.accenture.com".
             default_headers (dict[str, str] | None): Headers that apply to
@@ -196,7 +202,7 @@ class AIRefinery:  # pylint: disable=too-many-instance-attributes,too-few-public
 
     def __init__(
         self,
-        api_key: str,
+        api_key: str | TokenProvider,
         base_url: str = BASE_URL,
         default_headers: dict[str, str] | None = None,
         **kwargs

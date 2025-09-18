@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "airefinery-sdk"
-version = "1.16.0"
+version = "1.17.1"
 description = "AI Refinery™ by Accenture SDK for developing and executing AI multi-agent solutions."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -30,6 +30,8 @@ dependencies = [
     "presidio-analyzer>=2.2.358",
     "presidio-anonymizer>=2.2.358",
     "mcp>=1.6.0",
+    "aiofiles>=24.1.0",
+    "filelock>=3.15.3",
 ]
 
 [project.optional-dependencies]

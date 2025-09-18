@@ -18,8 +18,9 @@ import aiohttp
 import requests
 
 from air import BASE_URL, __version__
+from air.auth.token_provider import TokenProvider
 from air.types.audio import TTSResponse
-from air.utils import get_base_headers
+from air.utils import get_base_headers, get_base_headers_async
 
 logger = logging.getLogger(__name__)
 
@@ -153,7 +154,7 @@ class AsyncTTSClient:  # pylint: disable=too-few-public-methods
 
     def __init__(
         self,
-        api_key: str,
+        api_key: str | TokenProvider,
         *,
         base_url: str = BASE_URL,
         default_headers: dict[str, str] | None = None,
@@ -161,8 +162,14 @@ class AsyncTTSClient:  # pylint: disable=too-few-public-methods
         """Initialize the TTS client.
 
         Args:
+            api_key (str | TokenProvider): Credential that will be placed in the
+                ``Authorization`` header of every request.
+                * **str** – a raw bearer token / API key.
+                * **TokenProvider** – an object whose ``token()`` (and
+                  ``token_async()``) method returns a valid bearer token.  The
+                  client calls the provider automatically before each request.
+
             base_url: Base URL for TTS.
-            api_key: API key for authentication.
             default_headers: Default headers to include in requests.
         """
         self.base_url = base_url
@@ -215,7 +222,7 @@ class AsyncTTSClient:  # pylint: disable=too-few-public-methods
             payload.update(extra_body)
 
         # Start with built-in auth/JSON headers
-        headers = get_base_headers(
+        headers = await get_base_headers_async(
             self.api_key, extra_headers={"Accept": "application/octet-stream"}
         )
         # Merge in default_headers
@@ -366,7 +373,7 @@ class TTSClient:  # pylint: disable=too-few-public-methods
 
     def __init__(
         self,
-        api_key: str,
+        api_key: str | TokenProvider,
         *,
         base_url: str = BASE_URL,
         default_headers: dict[str, str] | None = None,
