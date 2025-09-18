@@ -10,6 +10,7 @@ import asyncio
 from functools import cached_property
 
 from air import BASE_URL
+from air.auth.token_provider import TokenProvider
 from air.knowledge.document_processing_client import DocumentProcessingClient
 
 
@@ -20,7 +21,7 @@ class AsyncKnowledgeClient:
 
     def __init__(
         self,
-        api_key: str,
+        api_key: str | TokenProvider,
         *,
         base_url: str = BASE_URL,
         default_headers: dict[str, str] | None = None,
@@ -29,8 +30,14 @@ class AsyncKnowledgeClient:
         Initialize the async knowledge client.
 
         Args:
+            api_key (str | TokenProvider): Credential that will be placed in the
+                ``Authorization`` header of every request.
+                * **str** – a raw bearer token / API key.
+                * **TokenProvider** – an object whose ``token()`` (and
+                  ``token_async()``) method returns a valid bearer token.  The
+                  client calls the provider automatically before each request.
+
             base_url (str): API base URL.
-            api_key (str): API key for authentication.
             default_headers (dict, optional): Additional headers.
         """
         self.base_url = base_url
@@ -77,7 +84,7 @@ class KnowledgeClient:
 
     def __init__(
         self,
-        api_key: str,
+        api_key: str | TokenProvider,
         *,
         base_url: str = BASE_URL,
         default_headers: dict[str, str] | None = None,
@@ -86,8 +93,14 @@ class KnowledgeClient:
         Initialize the sync knowledge client.
 
         Args:
+            api_key (str | TokenProvider): Credential that will be placed in the
+                ``Authorization`` header of every request.
+                * **str** – a raw bearer token / API key.
+                * **TokenProvider** – an object whose ``token()`` (and
+                  ``token_async()``) method returns a valid bearer token.  The
+                  client calls the provider automatically before each request.
+
             base_url (str): API base URL.
-            api_key (str): API key for authentication.
             default_headers (dict, optional): Additional headers.
         """
         self.base_url = base_url

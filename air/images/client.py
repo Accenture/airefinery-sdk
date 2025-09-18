@@ -16,9 +16,10 @@ import aiohttp
 import requests
 
 from air import BASE_URL, __version__
+from air.auth.token_provider import TokenProvider
 from air.types import ImagesResponse, SegmentationResponse
 from air.types.constants import DEFAULT_TIMEOUT
-from air.utils import get_base_headers
+from air.utils import get_base_headers, get_base_headers_async
 
 ENDPOINT_IMAGE_GENERATIONS = "{base_url}/v1/images/generations"
 ENDPOINT_IMAGE_SEGMENTATIONS = "{base_url}/v1/images/segmentations"
@@ -34,7 +35,7 @@ class ImagesClient:
 
     def __init__(
         self,
-        api_key: str,
+        api_key: str | TokenProvider,
         *,
         base_url: str = BASE_URL,
         default_headers: dict[str, str] | None = None,
@@ -43,9 +44,14 @@ class ImagesClient:
         Initializes the synchronous image client.
 
         Args:
-            base_url (str): Base URL of the API (e.g., "https://api.airefinery.accenture.com")
+            api_key (str | TokenProvider): Credential that will be placed in the
+                ``Authorization`` header of every request.
+                * **str** – a raw bearer token / API key.
+                * **TokenProvider** – an object whose ``token()`` (and
+                  ``token_async()``) method returns a valid bearer token.  The
+                  client calls the provider automatically before each request.
 
-            api_key (str): API key for authorization
+            base_url (str): Base URL of the API (e.g., "https://api.airefinery.accenture.com")
             default_headers (dict[str, str] | None): Optional headers applied to every request
         """
         self.base_url = base_url
@@ -176,7 +182,7 @@ class AsyncImagesClient:
 
     def __init__(
         self,
-        api_key: str,
+        api_key: str | TokenProvider,
         *,
         base_url: str,
         default_headers: dict[str, str] | None = None,
@@ -185,9 +191,14 @@ class AsyncImagesClient:
         Initializes the asynchronous image client.
 
         Args:
-            base_url (str): Base URL of the API (e.g., "https://api.airefinery.accenture.com")
+            api_key (str | TokenProvider): Credential that will be placed in the
+                ``Authorization`` header of every request.
+                * **str** – a raw bearer token / API key.
+                * **TokenProvider** – an object whose ``token()`` (and
+                  ``token_async()``) method returns a valid bearer token.  The
+                  client calls the provider automatically before each request.
 
-            api_key (str): API key for authorization
+            base_url (str): Base URL of the API (e.g., "https://api.airefinery.accenture.com")
             default_headers (dict[str, str] | None): Optional headers applied to every request
         """
         self.base_url = base_url
@@ -239,7 +250,7 @@ class AsyncImagesClient:
         }
 
         # Base authorization and JSON headers.
-        headers = get_base_headers(self.api_key)
+        headers = await get_base_headers_async(self.api_key)
 
         # Merge in default headers.
         headers.update(self.default_headers)
@@ -296,7 +307,7 @@ class AsyncImagesClient:
             **kwargs,
         }
 
-        headers = get_base_headers(self.api_key)
+        headers = await get_base_headers_async(self.api_key)
 
         headers.update(self.default_headers)
         if extra_headers:

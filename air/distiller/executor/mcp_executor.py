@@ -8,6 +8,11 @@ from mcp import ClientSession
 from mcp.client.sse import sse_client
 
 from air.distiller.executor.executor import Executor
+from air.types.distiller.client import (
+    DistillerMessageRequestType,
+    DistillerOutgoingMessage,
+    DistillerMessageRequestArgs,
+)
 from air.types.distiller.executor.mcp_config import MCPClientAgentConfig
 
 logger = logging.getLogger(__name__)
@@ -145,16 +150,16 @@ class MCPExecutor(Executor):
             except Exception as exc:  # pylint: disable=broad-except
                 logger.exception("MCPExecutor error during '%s'", action)
                 payload = json.dumps({"error": str(exc)})
-
-        await self.send_queue.put(
-            {
-                "account": self.account,
-                "project": self.project,
-                "uuid": self.uuid,
-                "role": self.role,
-                "request_id": request_id,
-                "request_type": "executor",
-                "request_args": {"content": payload},
-            }
+        response_request_args = DistillerMessageRequestArgs(content=payload)
+        response_payload = DistillerOutgoingMessage(
+            account=self.account,
+            project=self.project,
+            uuid=self.uuid,
+            role=self.role,
+            request_id=request_id,
+            request_type=DistillerMessageRequestType.EXECUTOR,
+            request_args=response_request_args,
         )
+
+        await self.send_queue.put(response_payload)
         return payload

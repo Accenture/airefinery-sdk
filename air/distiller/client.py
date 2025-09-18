@@ -3,19 +3,34 @@ import json
 import re
 import traceback
 from importlib.metadata import version
-from typing import Any, Callable, Optional, cast
+from typing import Any, Callable, Optional, TypeVar, Union, cast
 
 import requests
 import websockets
 from omegaconf import OmegaConf
+from pydantic import BaseModel, ValidationError
 
 from air import BASE_URL, PostgresAPI, __version__
+from air.auth.token_provider import TokenProvider
 from air.distiller.executor import (
     get_all_executor_agents,
     get_executor,
 )
 from air.distiller.pii_handler.pii_handler import PIIHandler
-from air.utils import async_input, async_print, get_base_headers
+from air.types.base import CustomBaseModel
+from air.types.distiller.client import (
+    DistillerIncomingMessage,
+    DistillerMemoryOutgoingMessage,
+    DistillerMemoryRequestArgs,
+    DistillerMemoryRequestType,
+    DistillerMessageRequestArgs,
+    DistillerMessageRequestType,
+    DistillerOutgoingMessage,
+    DistillerPongMessage,
+)
+from air.utils import async_input, async_print, get_base_headers, get_base_headers_async
+
+logger = __import__("logging").getLogger(__name__)
 
 
 def string_check(s) -> None:
@@ -44,6 +59,40 @@ def string_check(s) -> None:
     )
 
 
+RequestArgsType = TypeVar("RequestArgsType", bound=CustomBaseModel)
+
+
+def _build_request_args(
+    ModelClass: type[RequestArgsType], kwargs: dict
+) -> RequestArgsType:
+    """
+    Validate kwargs and build a CustomBaseModel instance.
+
+    Args:
+        ModelClass: A subclass of pydantic.BaseModel.
+        kwargs: Keyword arguments to validate.
+
+    Returns:
+        An instance of ModelClass.
+
+    Raises:
+        ValidationError: If required fields are missing or invalid.
+    """
+    expected_fields = set(ModelClass.model_fields.keys())
+    extra_fields = set(kwargs.keys()) - expected_fields
+    if extra_fields:
+        logger.warning(
+            f"Unexpected fields: {extra_fields}. Expected fields: {expected_fields}"
+        )
+    try:
+        return ModelClass.model_validate(kwargs)
+    except ValidationError as e:
+        logger.error(
+            f"Validation error for {ModelClass.__name__}: {e}. Expected fields: {expected_fields}"
+        )
+        raise
+
+
 class AsyncDistillerClient:
     """
     Distiller SDK for AI Refinery.
@@ -61,13 +110,21 @@ class AsyncDistillerClient:
     max_size_ws_recv = 167772160
     ping_interval = 10
 
-    def __init__(self, api_key: str, *, base_url: str = BASE_URL, **kwargs) -> None:
+    def __init__(
+        self, api_key: str | TokenProvider, *, base_url: str = BASE_URL, **kwargs
+    ) -> None:
         """
         Initialize the AsyncDistillerClient with authentication details.
 
         Args:
+            api_key (str | TokenProvider): Credential that will be placed in the
+                ``Authorization`` header of every request.
+                * **str** – a raw bearer token / API key.
+               * **TokenProvider** – an object whose ``token()`` (and
+                  ``token_async()``) method returns a valid bearer token.  The
+                  client calls the provider automatically before each request.
+
             base_url (str, optional): Base URL for the API. Defaults to "".
-            api_key (str): API key for authorization. Defaults to "".
         """
         super().__init__()
 
@@ -102,7 +159,7 @@ class AsyncDistillerClient:
         # PII Handler potion (useful to identify & mask/unmask sensitive information)
         self.pii_handler = None
 
-    def validate_api_key(self, api_key: str):
+    def validate_api_key(self, api_key: str | TokenProvider):
         """
         Sends a POST request to validate the given API key.
 
@@ -168,7 +225,7 @@ class AsyncDistillerClient:
         headers = get_base_headers(
             self.api_key,
             extra_headers={
-                "airefinery_account": self.account,
+                "airefinery_account": str(self.account),
             },
         )
 
@@ -221,7 +278,7 @@ class AsyncDistillerClient:
         headers = get_base_headers(
             self.api_key,
             extra_headers={
-                "airefinery_account": self.account,
+                "airefinery_account": str(self.account),
             },
         )
 
@@ -249,7 +306,7 @@ class AsyncDistillerClient:
                 message = await self.send_queue.get()
                 if message is None:
                     break  # Exit the loop if None is received
-                await self.connection.send(json.dumps(message))
+                await self.connection.send(message.model_dump_json())
         except asyncio.CancelledError:
             pass
         except Exception as e:
@@ -272,10 +329,11 @@ class AsyncDistillerClient:
                     continue
 
                 if msg.get("type", None) == "PING":
-                    await self.send({"type": "PONG"})
+                    await self.send(DistillerPongMessage())
                     self._last_ping_received = asyncio.get_event_loop().time()
                     continue
 
+                msg = DistillerIncomingMessage.model_validate(msg)
                 msg = await asyncio.to_thread(self.unmask_pii_if_needed, msg)
 
                 await self.receive_queue.put(msg)
@@ -306,7 +364,9 @@ class AsyncDistillerClient:
         except asyncio.CancelledError:
             pass
 
-    def mask_payload_if_needed(self, payload: dict[str, Any]) -> dict[str, Any]:
+    def mask_payload_if_needed(
+        self, payload: DistillerOutgoingMessage
+    ) -> DistillerOutgoingMessage:
         """
         Mask PII in payload if protection is enabled and payload contains a query.
 
@@ -316,14 +376,18 @@ class AsyncDistillerClient:
         Returns:
             The payload with PII masked if applicable
         """
-        is_query = payload.get("request_type") == "query" or (
-            "request_args" in payload and "query" in payload["request_args"]
-        )
 
-        if self.pii_handler and self.pii_handler.is_enabled() and is_query:
-            original = payload["request_args"].get("query", "")
+        if not isinstance(payload.request_args, DistillerMessageRequestArgs):
+            return payload
+
+        if (
+            self.pii_handler
+            and self.pii_handler.is_enabled()
+            and payload.request_type == DistillerMessageRequestType.QUERY
+            and payload.request_args.query
+        ):
+            original = payload.request_args.query
             masked_query, metadata = self.pii_handler.mask_text(original)
-
             payload["request_args"]["query"] = masked_query
 
             if metadata:
@@ -331,7 +395,9 @@ class AsyncDistillerClient:
 
         return payload
 
-    def unmask_pii_if_needed(self, msg: dict) -> dict:
+    def unmask_pii_if_needed(
+        self, msg: DistillerIncomingMessage
+    ) -> DistillerIncomingMessage:
         """
         Unmask PII in message content if PII handler is enabled and content exists.
 
@@ -341,17 +407,24 @@ class AsyncDistillerClient:
         Returns:
             The message with PII unmasked if applicable
         """
-        if self.pii_handler and self.pii_handler.is_enabled() and "content" in msg:
-            original_masked = msg["content"]
+        if self.pii_handler and self.pii_handler.is_enabled() and msg.content:
+            original_masked = msg.content
             demasked = self.pii_handler.demask_text(
                 original_masked,
                 self.pii_handler.get_metadata(),
             )
-            msg["content"] = demasked
+            msg.content = demasked
 
         return msg
 
-    async def send(self, payload: dict[str, Any]) -> None:
+    async def send(
+        self,
+        payload: (
+            DistillerOutgoingMessage
+            | DistillerMemoryOutgoingMessage
+            | DistillerPongMessage
+        ),
+    ) -> None:
         """
         Enqueue a payload to be sent over the established websocket connection.
 
@@ -359,12 +432,15 @@ class AsyncDistillerClient:
         payload (dict): The payload to send.
         """
         # Apply PII masking if needed
-        masked_payload = self.mask_payload_if_needed(payload)
+        if isinstance(payload, DistillerOutgoingMessage):
+            masked_payload = self.mask_payload_if_needed(payload)
+        else:
+            masked_payload = payload
 
         assert self.send_queue
         await self.send_queue.put(masked_payload)
 
-    async def recv(self) -> dict[str, Any]:
+    async def recv(self) -> DistillerIncomingMessage:
         """
         Dequeue a message from the receive queue.
         """
@@ -398,10 +474,10 @@ class AsyncDistillerClient:
         string_check(project)
         string_check(uuid)
 
-        headers = get_base_headers(
+        headers = await get_base_headers_async(
             self.api_key,
             extra_headers={
-                "airefinery_account": self.account,
+                "airefinery_account": str(self.account),
             },
         )
 
@@ -585,25 +661,55 @@ class AsyncDistillerClient:
                 self._wait_task_list = None
                 self.receive_queue = None
 
-    async def request(self, request_type: str, request_args: dict, **kwargs):
+    async def request(
+        self,
+        request_type: DistillerMemoryRequestType | DistillerMessageRequestType,
+        request_args: (
+            Union[DistillerMessageRequestArgs, DistillerMemoryRequestArgs] | None
+        ),
+        **kwargs,
+    ):
         """
         Submit a request to the websocket.
 
         Args:
-            request_type (str): Type of the request.
+            request_type (DistillerMemoryRequestType or DistillerMessageRequestType): Type of the request.
             request_args (dict): Arguments for the request.
             **kwargs: Additional keyword arguments.
         """
         assert self.project, "Project cannot be None. You should call connect first."
         assert self.uuid, "uuid cannot be None. You should call connect first."
 
-        payload = {
+        message_kwargs = {
             "project": self.project,
             "uuid": self.uuid,
             "request_args": request_args,
             "request_type": request_type,
             "role": "user",
         }
+
+        try:
+            outgoing_message_class, outgoing_message_args = None, None
+
+            if request_type in DistillerMemoryRequestType:
+                outgoing_message_class = DistillerMemoryOutgoingMessage
+                outgoing_message_args = DistillerMemoryRequestArgs
+            elif request_type in DistillerMessageRequestType:
+                outgoing_message_class = DistillerOutgoingMessage
+                outgoing_message_args = DistillerMessageRequestArgs
+
+            if not outgoing_message_class or not outgoing_message_args:
+                raise ValueError(
+                    f"Invalid message_types: {request_type}. or message_args: {request_args}. "
+                    f"Allowed types are: {tuple(item.value for item in DistillerMessageRequestType)} and "
+                    f"{tuple(item.value for item in DistillerMemoryRequestType)}"
+                )
+
+            outgoing_message_args.model_validate(request_args)
+            payload = outgoing_message_class(**message_kwargs)
+
+        except Exception as e:
+            raise ValueError("Failed to validate the request.") from e
 
         await self.send(payload)
 
@@ -615,9 +721,9 @@ class AsyncDistillerClient:
                     msg = await self.recv()
                 except ConnectionError:
                     return
-
-                status = msg.get("status", None)
-                role = msg.get("role", None)
+                msg = DistillerIncomingMessage.model_validate(msg)
+                status = msg.status
+                role = msg.role
 
                 if status == "complete":
                     break
@@ -631,17 +737,17 @@ class AsyncDistillerClient:
                         f"{self.executor_dict.keys()}"
                     )
 
-                    kwargs = msg.get("kwargs", {})
-                    request_id = msg.get("request_id", "")
-
                     assert self.send_queue
+
                     wait_msg_task = asyncio.create_task(
-                        self.executor_dict[role](request_id=request_id, **kwargs)
+                        self.executor_dict[role](
+                            request_id=msg.request_id, **msg.kwargs
+                        )
                     )
                     self._wait_task_list.append(wait_msg_task)
 
                 if status not in ["wait", "complete"]:
-                    if "content" in msg and db_client:
+                    if msg.content and db_client:
                         await self._log_chat(
                             db_client=db_client,
                             project=self.project,
@@ -658,7 +764,7 @@ class AsyncDistillerClient:
             print(traceback.format_exc())
             raise e
 
-    async def query(self, query: str, image: Optional[str] = None, **kwargs):
+    async def query(self, **kwargs):
         """
         Send a query request to the websocket, with PII masked if enabled.
 
@@ -670,9 +776,12 @@ class AsyncDistillerClient:
         Returns:
             Coroutine: The request coroutine.
         """
+
+        request_args = _build_request_args(DistillerMessageRequestArgs, kwargs)
+
         return self.request(
-            request_type="query",
-            request_args={"query": query, "image": image},
+            request_type=DistillerMessageRequestType.QUERY,
+            request_args=request_args,
             **kwargs,
         )
 
@@ -686,12 +795,18 @@ class AsyncDistillerClient:
         Returns:
             The retrieved memory.
         """
-        responses = self.request(request_type="memory/retrieve", request_args=kwargs)
+
+        request_args = _build_request_args(DistillerMemoryRequestArgs, kwargs)
+        responses = self.request(
+            request_type=DistillerMemoryRequestType.RETRIEVE,
+            request_args=request_args,
+            **kwargs,
+        )
         content = ""
 
         async for response in responses:
-            if response.get("role", None) == "memory":
-                content = response.get("content", "")
+            if response.role == "memory":
+                content = response.content
         return content
 
     async def add_memory(self, **kwargs):
@@ -704,8 +819,13 @@ class AsyncDistillerClient:
         Returns:
             None
         """
-        responses = self.request(request_type="memory/add", request_args=kwargs)
 
+        request_args = _build_request_args(DistillerMemoryRequestArgs, kwargs)
+
+        responses = self.request(
+            request_type=DistillerMemoryRequestType.ADD,
+            request_args=request_args,
+        )
         async for _ in responses:
             pass
 
@@ -719,7 +839,10 @@ class AsyncDistillerClient:
         Returns:
             Coroutine: The request coroutine.
         """
-        responses = self.request(request_type="memory/reset", request_args={})
+        responses = self.request(
+            request_type=DistillerMemoryRequestType.RESET,
+            request_args=DistillerMemoryRequestArgs(),
+        )
         async for _ in responses:
             pass
 
@@ -779,7 +902,12 @@ class AsyncDistillerClient:
             return messages
 
     async def _log_chat(
-        self, *, db_client: PostgresAPI, project: str, uuid: str, message: dict
+        self,
+        *,
+        db_client: PostgresAPI,
+        project: str,
+        uuid: str,
+        message: DistillerIncomingMessage,
     ) -> bool:
         """
         Log conversation history to a database.
@@ -831,12 +959,12 @@ class AsyncDistillerClient:
         _, insertion_response_success = await db_client.execute_query(
             insert_query,
             params=[
-                message["uuid_timestamp"],
+                message.uuid_timestamp,
                 uuid,
-                message["timestamp"],
-                message["role"],
-                message["content"],
-                json.dumps(message),
+                message.timestamp,
+                message.role,
+                message.content,
+                message.model_dump_json(),
             ],
         )
         if not insertion_response_success:
@@ -890,16 +1018,15 @@ class AsyncDistillerClient:
         ) as dc:
             while True:
                 query = await async_input("%%% USER %%%\n")
-                responses = await dc.query(query)
+                responses = await dc.query(query=query)
                 async for response in responses:
-                    if (not response.get("role", None)) or (
-                        not response.get("content", None)
-                    ):
+                    if (not response.role) or (not response.content):
+
                         continue
 
                     await async_print()
-                    await async_print(f"%%% AGENT {response['role']} %%%")
-                    await async_print(response["content"])
+                    await async_print(f"%%% AGENT {response.role} %%%")
+                    await async_print(response.content)
                     await async_print()
                     pass
 

@@ -46,8 +46,9 @@ import aiohttp
 import requests
 
 from air import BASE_URL, __version__
+from air.auth.token_provider import TokenProvider
 from air.types import ChatCompletion
-from air.utils import get_base_headers
+from air.utils import get_base_headers, get_base_headers_async
 
 ENDPOINT_COMPLETIONS = "{base_url}/v1/chat/completions"
 
@@ -62,7 +63,7 @@ class ChatCompletionsClient:  # pylint: disable=too-few-public-methods
 
     def __init__(
         self,
-        api_key: str,
+        api_key: str | TokenProvider,
         *,
         base_url: str = BASE_URL,
         default_headers: dict[str, str] | None = None,
@@ -148,7 +149,7 @@ class ChatClient:  # pylint: disable=too-few-public-methods
 
     def __init__(
         self,
-        api_key: str,
+        api_key: str | TokenProvider,
         *,
         base_url: str = BASE_URL,
         default_headers: dict[str, str] | None = None,
@@ -180,7 +181,7 @@ class AsyncChatCompletionsClient:  # pylint: disable=too-few-public-methods
 
     def __init__(
         self,
-        api_key: str,
+        api_key: str | TokenProvider,
         *,
         base_url: str = BASE_URL,
         default_headers: dict[str, str] | None = None,
@@ -237,7 +238,7 @@ class AsyncChatCompletionsClient:  # pylint: disable=too-few-public-methods
         }
 
         # Start with built-in auth/JSON headers
-        headers = get_base_headers(self.api_key)
+        headers = await get_base_headers_async(self.api_key)
 
         # Merge in default_headers
         headers.update(self.default_headers)
@@ -262,7 +263,7 @@ class AsyncChatClient:  # pylint: disable=too-few-public-methods
 
     def __init__(
         self,
-        api_key: str,
+        api_key: str | TokenProvider,
         *,
         base_url: str = BASE_URL,
         default_headers: dict[str, str] | None = None,
