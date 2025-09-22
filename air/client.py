@@ -8,10 +8,17 @@ from air.audio import AsyncAudio, Audio
 from air.auth import TokenProvider
 from air.chat import AsyncChatClient, ChatClient
 from air.distiller import AsyncDistillerClient
-from air.embeddings import AsyncEmbeddingsClient, EmbeddingsClient
-from air.images import AsyncImagesClient, ImagesClient
+from air.embeddings import (
+    AsyncEmbeddingsClient,
+    EmbeddingsClient,
+)
+from air.images import (
+    AsyncImagesClient,
+    ImagesClient,
+)
 from air.knowledge import AsyncKnowledgeClient, KnowledgeClient
 from air.models import AsyncModelsClient, ModelsClient
+from air.fine_tuning import AsyncFineTuningClient, FineTuningClient
 
 
 class AsyncAIRefinery:  # pylint: disable=too-many-instance-attributes,too-few-public-methods
@@ -144,6 +151,12 @@ class AsyncAIRefinery:  # pylint: disable=too-many-instance-attributes,too-few-p
             api_key=self.api_key,
             default_headers=self.default_headers,
         )
+        self.fine_tuning = AsyncFineTuningClient(
+            api_key=self.api_key,
+            base_url=self.base_url,
+            default_headers=self.default_headers,
+            **kwargs
+        )
 
 
 class AIRefinery:  # pylint: disable=too-many-instance-attributes,too-few-public-methods
@@ -261,6 +274,13 @@ class AIRefinery:  # pylint: disable=too-many-instance-attributes,too-few-public
             base_url=self.base_url,
             api_key=self.api_key,
             default_headers=self.default_headers,
+        )
+
+        self.fine_tuning = FineTuningClient(
+            base_url=self.base_url,
+            api_key=self.api_key,
+            default_headers=self.default_headers,
+            **kwargs
         )
 
     @property
