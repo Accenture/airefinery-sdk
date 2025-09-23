@@ -1,3 +1,4 @@
+from air.types.audio import ASRResponse, TTSResponse
 from air.types.base import AsyncPage, SyncPage
 from air.types.chat import (
     ChatCompletion,
@@ -6,7 +7,6 @@ from air.types.chat import (
 )
 from air.types.embeddings import CreateEmbeddingResponse, Embedding
 from air.types.images import ImagesResponse, SegmentationResponse
-from air.types.audio import ASRResponse, TTSResponse
 from air.types.knowledge import (
     ChunkingConfig,
     ClientConfig,
@@ -18,3 +18,4 @@ from air.types.knowledge import (
     VectorDBUploadConfig,
 )
 from air.types.models import Model
+from air.types.fine_tuning import FineTuningRequest

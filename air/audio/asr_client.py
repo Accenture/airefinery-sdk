@@ -29,7 +29,6 @@ import requests
 from pydantic import TypeAdapter
 
 from air import BASE_URL, __version__
-from air.audio.tts_client import ENDPOINT_SPEECH
 from air.auth.token_provider import TokenProvider
 from air.types import ASRResponse
 from air.types.audio import (
@@ -155,7 +154,7 @@ class AsyncASRClient:  # pylint: disable=too-few-public-methods
             form.add_field(k, str(v))
 
         # Start with built-in auth/JSON headers
-        headers = await get_base_headers_async(self.api_key)
+        headers = await get_base_headers_async(self.api_key, content_type=None)
 
         # Merge in default_headers
         headers.update(self.default_headers)
@@ -304,7 +303,7 @@ class AsyncTranscriptionsWithStreamingResponse:  # pylint: disable=too-few-publi
             form.add_field(k, str(v))
 
         # Start with built-in auth/JSON headers
-        headers = get_base_headers(self._transcriptions.api_key)
+        headers = get_base_headers(self._transcriptions.api_key, content_type=None)
 
         # Merge in default_headers
         headers.update(self._transcriptions.default_headers)
@@ -459,7 +458,7 @@ class ASRClient:  # pylint: disable=too-few-public-methods
         )
 
         # Start with built-in auth/JSON headers
-        headers = get_base_headers(self.api_key)
+        headers = get_base_headers(self.api_key, content_type=None)
 
         # Merge in default_headers
         headers.update(self.default_headers)
@@ -589,7 +588,7 @@ class TranscriptionsWithStreamingResponse:  # pylint: disable=too-few-public-met
         )
 
         # Start with built-in auth/JSON headers
-        headers = get_base_headers(self._transcriptions.api_key)
+        headers = get_base_headers(self._transcriptions.api_key, content_type=None)
 
         # Merge in default_headers
         headers.update(self._transcriptions.default_headers)

@@ -2,7 +2,7 @@
 
 from setuptools import find_packages, setup
 
-VERSION = "1.17.1"
+VERSION = "1.18.1"
 
 
 setup(
@@ -45,10 +45,9 @@ setup(
                 ],
                 "tah-writer-ai": ["writer-sdk>=2.2.0"],
                 "knowledge": [
-                    "graphrag==2.1.0",
+                    "graphrag==2.5.0",
                     "networkx>=3.4.2",
                     "matplotlib>=3.10.1",
-                    "openai<=1.99.1",
                 ],
                 "tah-aws-ai": [
                     "boto3==1.38.36",

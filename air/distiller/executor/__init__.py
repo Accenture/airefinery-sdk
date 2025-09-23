@@ -46,6 +46,10 @@ _AGENT_CLASS_MAP = {
         "air.distiller.executor.deep_research_executor",
         "DeepResearchExecutor",
     ),
+    "ServiceNowAgent": (
+        "air.distiller.executor.servicenow_executor",
+        "ServiceNowExecutor",
+    ),
     "SnowflakeAgent": (
         "air.distiller.executor.snowflake_executor",
         "SnowflakeExecutor",
