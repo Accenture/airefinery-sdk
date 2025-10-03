@@ -2,7 +2,7 @@
 
 from setuptools import find_packages, setup
 
-VERSION = "1.18.3"
+VERSION = "1.19.0"
 
 
 setup(
@@ -50,13 +50,13 @@ setup(
                     "matplotlib>=3.10.1",
                 ],
                 "tah-aws-ai": [
-                    "boto3==1.38.36",
+                    "boto3>=1.38.36",
                 ],
                 "tah-a2a": [
                     "a2a-sdk==0.2.8",
                 ],
                 "tah-databricks": [
-                    "databricks-sdk==0.57.0",
+                    "databricks-sdk>=0.57.0",
                 ],
             }
         ),

@@ -10,10 +10,10 @@ import uuid
 from typing import Any, Callable, Dict, Tuple
 
 import httpx
-import requests
 
 from air.distiller.executor.executor import Executor
 from air.types.distiller.executor.servicenow_config import (
+    ServiceNowAgentCard,
     ServiceNowAgentConfig,
 )
 
@@ -80,9 +80,7 @@ class ServiceNowExecutor(Executor):
             "Content-Type": "application/json",
             "x-sn-apikey": self._servicenow_token,
         }
-        agent_card = self._servicenow_agent_config.agent_card
-        self._public_agent_card_path = agent_card.public.public_agent_card_path
-        self._rpc_url = agent_card.public.rpc_url
+        self._agent_card = self._servicenow_agent_config.agent_card
         self._wait_time = self._servicenow_agent_config.wait_time
 
         # Initialize the base Executor with our specialized execution method.
@@ -113,21 +111,28 @@ class ServiceNowExecutor(Executor):
         """
         Processes the agent request asynchronously.
         """
-        response = await self.send_message(prompt)
-        response_text = self.parse_response(response)
+        response = await self._send_message(prompt)
+        response_text = self._parse_response(response)
         logger.info(
             "ServiceNow agent response received (length=%d)", len(response_text)
         )
 
         return response_text
 
-    async def send_message(self, prompt: str) -> httpx.Response:
+    async def _send_message(self, prompt: str) -> httpx.Response:
         """
         Sends the query to the ServiceNow agent.
         """
+        # Collect the public agent card
+        public_agent_card_path = self._agent_card.public.public_agent_card_path
+        rpc_url = self._agent_card.public.rpc_url
+        final_agent_card_to_use = await self._collect_agent_card(
+            rpc_url, public_agent_card_path
+        )
+
         # Retrieve post url and create body of the API request
-        agent_url = await self.retrieve_agent_url()
-        request_body = self.create_request_body(prompt)
+        agent_url = await self._retrieve_agent_url(final_agent_card_to_use)
+        request_body = self._create_request_body(prompt)
 
         # Post request
         try:
@@ -149,17 +154,44 @@ class ServiceNowExecutor(Executor):
 
         return response
 
-    async def retrieve_agent_url(self) -> str:
+    async def _collect_agent_card(
+        self, rpc_url: str, public_agent_card_path: str
+    ) -> ServiceNowAgentCard:
+        """
+        Retrieves the A2A AgentCard of ServiceNow Agent.
+        """
+        try:
+            agent_card_url = f"{rpc_url}/{public_agent_card_path}"
+            logger.info(f"Attempting to fetch public agent card from: {agent_card_url}")
+            async with httpx.AsyncClient() as client:
+                response = await client.get(agent_card_url, headers=self._headers)
+                response.raise_for_status()
+                agent_card_data = response.json()
+        except httpx.RequestError as e:
+            logger.error(f"Error retrieving agent card: {e}")
+            raise RuntimeError("Failed to retrieve agent card.") from e
+
+        if agent_card_data is None:
+            raise RuntimeError("No agent card was successfully retrieved.")
+
+        # Validate the agent card using the ServiceNowAgentCard model
+        try:
+            final_agent_card_to_use = ServiceNowAgentCard(**agent_card_data)
+        except Exception as e:
+            logger.error(f"Agent card validation failed: {e}")
+            raise ValueError("Invalid agent card data.") from e
+
+        return final_agent_card_to_use
+
+    async def _retrieve_agent_url(
+        self, final_agent_card_to_use: ServiceNowAgentCard
+    ) -> str:
         """
         Retrieves the agent_url from the public agent card.
         The agent_url is used to post the requests to the ServiceNow agent.
         """
-        final_agent_card_to_use = await self.collect_agent_card()
         try:
-            if not "url" in final_agent_card_to_use:
-                raise ValueError("Missing 'url' in the agent card.")
-
-            agent_url = final_agent_card_to_use.get("url", "")
+            agent_url = final_agent_card_to_use.url
             if agent_url == "":
                 raise ValueError("'agent_url' should not be empty!")
         except Exception as e:
@@ -167,28 +199,7 @@ class ServiceNowExecutor(Executor):
 
         return agent_url
 
-    async def collect_agent_card(self) -> dict:
-        """
-        Retrieves the A2A AgentCard of ServiceNow Agent.
-        """
-        final_agent_card_to_use = {}
-        try:
-            agent_card_url = f"{self._rpc_url}/{self._public_agent_card_path}"
-            logger.info(f"Attempting to fetch public agent card from: {agent_card_url}")
-            async with httpx.AsyncClient() as client:
-                response = await client.get(agent_card_url, headers=self._headers)
-                response.raise_for_status()
-                final_agent_card_to_use = response.json()
-        except httpx.RequestError as e:
-            logger.error(f"Error retrieving agent card: {e}")
-            raise RuntimeError("Failed to retrieve agent card.") from e
-
-        if final_agent_card_to_use is None:
-            raise RuntimeError("No agent card was successfully retrieved.")
-
-        return final_agent_card_to_use
-
-    def create_request_body(self, prompt: str) -> dict:
+    def _create_request_body(self, prompt: str) -> dict:
         """
         Creates the request body for the ServiceNow agent.
         """
@@ -220,7 +231,7 @@ class ServiceNowExecutor(Executor):
 
         return request_body
 
-    def parse_response(self, response) -> str:
+    def _parse_response(self, response: httpx.Response) -> str:
         """
         Parses the response of the ServiceNow agent.
         """
@@ -250,12 +261,17 @@ class ServiceNowExecutor(Executor):
                 "'parts' field must be a non-empty list in ServiceNow response"
             )
 
-        # Get the first part as it contains the textual response of the agent
-        part = parts[0]
-        if "text" not in part:
-            raise ValueError("Missing 'text' field in ServiceNow response message part")
-        response_text = part["text"]
-        if not isinstance(response_text, str):
-            raise ValueError("'text' field must be a string in ServiceNow response")
+        # Concatenate the textual part of all elements except the last one
+        response_text = ""
+        for part in parts[
+            :-1
+        ]:  # Exclude the last element (only contains 'Task has been completed')
+            if "text" not in part:
+                raise ValueError(
+                    "Missing 'text' field in ServiceNow response message part"
+                )
+            if not isinstance(part["text"], str):
+                raise ValueError("'text' field must be a string in ServiceNow response")
+            response_text += part["text"]
 
         return response_text

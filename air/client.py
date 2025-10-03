@@ -19,6 +19,7 @@ from air.images import (
 from air.knowledge import AsyncKnowledgeClient, KnowledgeClient
 from air.models import AsyncModelsClient, ModelsClient
 from air.fine_tuning import AsyncFineTuningClient, FineTuningClient
+from air.moderations import AsyncModerationsClient, ModerationsClient
 
 
 class AsyncAIRefinery:  # pylint: disable=too-many-instance-attributes,too-few-public-methods
@@ -158,6 +159,13 @@ class AsyncAIRefinery:  # pylint: disable=too-many-instance-attributes,too-few-p
             **kwargs
         )
 
+        # Provides async moderation functionalities
+        self.moderations = AsyncModerationsClient(
+            base_url=self.base_url,
+            api_key=self.api_key,
+            default_headers=self.default_headers,
+        )
+
 
 class AIRefinery:  # pylint: disable=too-many-instance-attributes,too-few-public-methods
     """
@@ -281,6 +289,13 @@ class AIRefinery:  # pylint: disable=too-many-instance-attributes,too-few-public
             api_key=self.api_key,
             default_headers=self.default_headers,
             **kwargs
+        )
+
+        # Provides sync moderation functionalities
+        self.moderations = ModerationsClient(
+            base_url=self.base_url,
+            api_key=self.api_key,
+            default_headers=self.default_headers,
         )
 
     @property

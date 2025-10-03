@@ -1,5 +1,7 @@
 """ServiceNow Agent Configuration Schema"""
 
+from typing import Dict, List, Optional
+
 from pydantic import BaseModel, Field, model_validator
 
 
@@ -84,3 +86,202 @@ class ServiceNowAgentConfig(BaseModel):
             )
 
         return self
+
+
+class Provider(BaseModel):
+    organization: str = Field(
+        default="",
+        description="Name of the organization providing the agent.",
+    )
+    url: str = Field(
+        default="",
+        description="URL of the organization.",
+    )
+
+
+class AuthorizationCodeFlow(BaseModel):
+    authorizationUrl: str = Field(
+        default="",
+        description="URL for authorization.",
+    )
+    refreshUrl: str = Field(
+        default="",
+        description="URL for token refresh.",
+    )
+    scopes: Dict[str, str] = Field(
+        default_factory=dict,
+        description="Scopes for the authorization flow.",
+    )
+    tokenUrl: str = Field(
+        default="",
+        description="URL for token retrieval.",
+    )
+
+
+class ClientCredentialsFlow(BaseModel):
+    refreshUrl: str = Field(
+        default="",
+        description="URL for token refresh.",
+    )
+    scopes: Dict[str, str] = Field(
+        default_factory=dict,
+        description="Scopes for the client credentials flow.",
+    )
+    tokenUrl: str = Field(
+        default="",
+        description="URL for token retrieval.",
+    )
+
+
+class OAuthFlows(BaseModel):
+    authorizationCode: AuthorizationCodeFlow = Field(
+        default_factory=AuthorizationCodeFlow,
+        description="Authorization code flow details.",
+    )
+    clientCredentials: ClientCredentialsFlow = Field(
+        default_factory=ClientCredentialsFlow,
+        description="Client credentials flow details.",
+    )
+
+
+class OAuthScheme(BaseModel):
+    flows: OAuthFlows = Field(
+        default_factory=OAuthFlows,
+        description="OAuth flows supported by the agent.",
+    )
+    type: str = Field(
+        default="",
+        description="Type of OAuth scheme.",
+    )
+    oauth2MetadataUrl: str = Field(
+        default="",
+        description="Metadata URL for OAuth2.",
+    )
+
+
+class SecuritySchemes(BaseModel):
+    oauth: OAuthScheme = Field(
+        default_factory=OAuthScheme,
+        description="OAuth security scheme details.",
+    )
+
+
+class Capabilities(BaseModel):
+    streaming: bool = Field(
+        default_factory=bool,
+        description="Indicates if streaming is supported.",
+    )
+    pushNotifications: bool = Field(
+        default_factory=bool,
+        description="Indicates if push notifications are supported.",
+    )
+    stateTransitionHistory: bool = Field(
+        default_factory=bool,
+        description="Indicates if state transition history is supported.",
+    )
+
+
+class Skill(BaseModel):
+    id: str = Field(
+        default="",
+        description="Unique identifier for the skill.",
+    )
+    name: str = Field(
+        default="",
+        description="Name of the skill.",
+    )
+    description: str = Field(
+        default="",
+        description="Description of the skill.",
+    )
+    inputModes: List[str] = Field(
+        default_factory=list,
+        description="Supported input modes for the skill.",
+    )
+    outputModes: List[str] = Field(
+        default_factory=list,
+        description="Supported output modes for the skill.",
+    )
+    security: List[Dict] = Field(
+        default_factory=list,
+        description="Security details for the skill.",
+    )
+    tags: List[str] = Field(
+        default_factory=list,
+        description="Tags associated with the skill.",
+    )
+
+
+class ServiceNowAgentCard(BaseModel):
+    protocolVersion: str = Field(
+        default="",
+        description="Protocol version used by the agent.",
+    )
+    name: str = Field(
+        default="",
+        description="Name of the agent.",
+    )
+    description: str = Field(
+        default="",
+        description="Description of the agent.",
+    )
+    url: str = Field(
+        default="",
+        description="URL of the agent.",
+    )
+    preferredTransport: str = Field(
+        default="",
+        description="Preferred transport method for the agent.",
+    )
+    additionalInterfaces: List[str] = Field(
+        default_factory=list,
+        description="Additional interfaces supported by the agent.",
+    )
+    provider: Provider = Field(
+        default_factory=Provider,
+        description="Provider details for the agent.",
+    )
+    iconUrl: str = Field(
+        default="",
+        description="URL for the agent's icon.",
+    )
+    version: str = Field(
+        default="",
+        description="Version of the agent.",
+    )
+    documentationUrl: str = Field(
+        default="",
+        description="URL for the agent's documentation.",
+    )
+    capabilities: Capabilities = Field(
+        default_factory=Capabilities,
+        description="Capabilities of the agent.",
+    )
+    securitySchemes: SecuritySchemes = Field(
+        default_factory=SecuritySchemes,
+        description="Security schemes supported by the agent.",
+    )
+    security: List[Dict[str, List[str]]] = Field(
+        default_factory=list,
+        description="Security details for the agent.",
+    )
+    defaultInputModes: List[str] = Field(
+        default_factory=list,
+        description="Default input modes supported by the agent.",
+    )
+    defaultOutputModes: List[str] = Field(
+        default_factory=list,
+        description="Default output modes supported by the agent.",
+    )
+    skills: List[Skill] = Field(
+        default_factory=list,
+        description="Skills supported by the agent.",
+    )
+    supportsAuthenticatedExtendedCard: bool = Field(
+        default_factory=bool,
+        description="Indicates if authenticated extended cards are supported.",
+    )
+    signatures: List[Dict] = Field(
+        default_factory=list,
+        description="Signatures associated with the agent.",
+    )
