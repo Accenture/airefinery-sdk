@@ -54,6 +54,10 @@ _AGENT_CLASS_MAP = {
         "air.distiller.executor.snowflake_executor",
         "SnowflakeExecutor",
     ),
+    "WolframAgent": (
+        "air.distiller.executor.wolfram_executor",
+        "WolframExecutor",
+    ),
 }
 
 # Cache for already-imported executor classes, so we import them only once.
