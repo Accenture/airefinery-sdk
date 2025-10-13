@@ -12,13 +12,13 @@ from air.embeddings import (
     AsyncEmbeddingsClient,
     EmbeddingsClient,
 )
+from air.fine_tuning import AsyncFineTuningClient, FineTuningClient
 from air.images import (
     AsyncImagesClient,
     ImagesClient,
 )
 from air.knowledge import AsyncKnowledgeClient, KnowledgeClient
 from air.models import AsyncModelsClient, ModelsClient
-from air.fine_tuning import AsyncFineTuningClient, FineTuningClient
 from air.moderations import AsyncModerationsClient, ModerationsClient
 
 

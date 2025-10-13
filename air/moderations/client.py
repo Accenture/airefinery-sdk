@@ -40,13 +40,13 @@ from typing import Iterable, Sequence, Union
 
 import aiohttp
 import requests
-from openai.types.moderation_multi_modal_input_param import (
-    ModerationMultiModalInputParam,
-)
 
 from air import BASE_URL, __version__
 from air.auth.token_provider import TokenProvider
-from air.types import ModerationCreateResponse
+from air.types.moderations import (
+    ModerationCreateResponse,
+    ModerationMultiModalInputParam,
+)
 from air.utils import get_base_headers
 
 ENDPOINT_MODERATIONS = "{base_url}/v1/moderations"

@@ -9,12 +9,16 @@ This module provides:
   • ModerationCreateResponse     – Top-level response from the moderations endpoint
 """
 
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from pydantic import Field
-from typing_extensions import Literal
+from typing_extensions import Literal, Required, TypeAlias, TypedDict
 
 from air.types.base import CustomBaseModel
+
+# ------------------------------------------------------------------ #
+#  output types                                                      #
+# ------------------------------------------------------------------ #
 
 
 class Categories(CustomBaseModel):
@@ -276,3 +280,34 @@ class ModerationCreateResponse(CustomBaseModel):
     model: str = Field(description="The model used to generate the moderation results.")
 
     results: List[Moderation] = Field(description="A list of moderation objects.")
+
+
+# ------------------------------------------------------------------ #
+#  input types                                                       #
+# ------------------------------------------------------------------ #
+
+
+class ImageURL(TypedDict, total=False):
+    url: Required[str]
+    """Either a URL of the image or the base64 encoded image data."""
+
+
+class ModerationImageURLInputParam(TypedDict, total=False):
+    image_url: Required[ImageURL]
+    """Contains either an image URL or a data URL for a base64 encoded image."""
+
+    type: Required[Literal["image_url"]]
+    """Always `image_url`."""
+
+
+class ModerationTextInputParam(TypedDict, total=False):
+    text: Required[str]
+    """A string of text to classify."""
+
+    type: Required[Literal["text"]]
+    """Always `text`."""
+
+
+ModerationMultiModalInputParam: TypeAlias = Union[
+    ModerationImageURLInputParam, ModerationTextInputParam
+]
