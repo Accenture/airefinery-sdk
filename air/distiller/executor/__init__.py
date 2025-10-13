@@ -46,6 +46,10 @@ _AGENT_CLASS_MAP = {
         "air.distiller.executor.deep_research_executor",
         "DeepResearchExecutor",
     ),
+    "PegaAgent": (
+        "air.distiller.executor.pega_executor",
+        "PegaExecutor",
+    ),
     "ServiceNowAgent": (
         "air.distiller.executor.servicenow_executor",
         "ServiceNowExecutor",

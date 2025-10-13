@@ -93,6 +93,33 @@ def _build_request_args(
         raise
 
 
+def _prepare_config_payload(
+    config_path: Optional[str],
+    json_config: Optional[dict | str],
+    *,
+    send_yaml_string: bool = False,
+) -> dict:
+    """
+    Create {"config": ...} for validation. If send_yaml_string is True and
+    config_path is provided, read the YAML file as text and send that raw string.
+    Otherwise, send a JSON/dict payload.
+    """
+    if config_path:
+        if send_yaml_string:
+            with open(config_path, "r", encoding="utf-8") as f:
+                yaml_str = f.read()
+            return {"config": yaml_str}
+        else:
+            yaml_config = OmegaConf.load(config_path)
+            json_cfg = cast(dict, OmegaConf.to_container(yaml_config, resolve=True))
+            return {"config": json_cfg}
+
+    if json_config is None:
+        raise ValueError("Either json_config or config_path must be provided.")
+
+    return {"config": json_config}
+
+
 class AsyncDistillerClient:
     """
     Distiller SDK for AI Refinery.
@@ -107,6 +134,7 @@ class AsyncDistillerClient:
     create_suffix = "distiller/create"
     download_suffix = "distiller/download"
     reset_suffix = "distiller/reset"
+    config_validate_suffix = "distiller/config/validate"
     max_size_ws_recv = 167772160
     ping_interval = 10
 
@@ -247,8 +275,75 @@ class AsyncDistillerClient:
             return True
         else:
             print("Failed to create the project.")
+            print(f"Status code: {response.status_code}")
+            print(f"Error Message: {str(response.content)}")
             print(response)
             return False
+
+    def validate_config(
+        self,
+        *,
+        config_path: Optional[str] = None,
+        config: Optional[dict | str] = None,
+        send_yaml_string: bool = False,
+        timeout: float = 15.0,
+    ) -> bool:
+        """
+        Validate a distiller configuration via REST API.
+
+        Args:
+            config_path: Path to a YAML file. If provided, it will be loaded.
+            config: Either a YAML string or a dict (JSON) config.
+            send_yaml_string: If True and config_path is provided, send raw YAML text
+                             to the server; otherwise send JSON/dict.
+            timeout: Request timeout in seconds.
+
+        Returns:
+            True if validation succeeded; False otherwise.
+        """
+        payload = _prepare_config_payload(
+            config_path, config, send_yaml_string=send_yaml_string
+        )
+
+        headers = get_base_headers(
+            self.api_key,
+            extra_headers={"airefinery_account": str(self.account)},
+        )
+
+        # Ensure this matches your FastAPI route
+        url = f"{self.base_url}/{self.config_validate_suffix}"
+
+        resp = requests.post(url, headers=headers, json=payload, timeout=timeout)
+
+        if resp.status_code == 200:
+            # Success; body is optional for logging
+            try:
+                data = resp.json()
+                msg = data.get("message", "")
+                logger.info("Config validation succeeded: %s", msg)
+            except ValueError:
+                # Body isn't JSON; that's OK, since 200 indicates success
+                logger.debug(
+                    "Config validation returned non-JSON body; treating as success. Body=%r",
+                    resp.text,
+                )
+            return True
+
+        # Not successful; no structured raising yet
+        try:
+            err_body = resp.json()
+            logger.error(
+                "Config validation failed: status=%s body=%s",
+                resp.status_code,
+                err_body,
+            )
+        except ValueError:
+            logger.error(
+                "Config validation failed: status=%s body=%r",
+                resp.status_code,
+                resp.text,
+            )
+        return False
 
     def download_project(
         self,

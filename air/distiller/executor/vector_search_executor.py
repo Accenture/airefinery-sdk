@@ -1,5 +1,5 @@
 """
-Executor for custom ai search retrievers
+Executor for custom vector search retrievers
 """
 
 import asyncio
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class CustomVectorSearchExecutor(Executor):
-    """Executor class for ResearchAgent.
+    """Executor for custom vector search operations.
 
     Extends Executor to support multiple retriever functions based on retriever types.
 
@@ -52,6 +52,11 @@ class CustomVectorSearchExecutor(Executor):
         # Initialize func as a dictionary of callables.
         # Perform setup based on retriever type specified in utility_config.
         self.func = {}
+
+        # Flag to track if legacy format deprecation warning has been shown
+        # This prevents spam when processing multiple items without 'source' field
+        self._legacy_format_warning_shown = False
+
         try:
             retriever_config_list = utility_config.get("retriever_config_list")
             if not retriever_config_list:
@@ -64,13 +69,13 @@ class CustomVectorSearchExecutor(Executor):
                 retriever_class = retriever_config.get("retriever_class")
 
                 if not retriever_class:
-                    error_msg = "retriever_config.retriever_class is missing in retriever_config."
+                    error_msg = "retriever_class is missing in retriever_config."
                     logger.error(error_msg)
                     raise ValueError(error_msg)
 
                 retriever_name = retriever_config.get("retriever_name")
                 if not retriever_name:
-                    error_msg = "retriever_config.retriever_name is missing in retriever_config."
+                    error_msg = "retriever_name is missing in retriever_config."
                     logger.error(error_msg)
                     raise ValueError(error_msg)
 
@@ -91,7 +96,7 @@ class CustomVectorSearchExecutor(Executor):
 
         except Exception as e:
             logger.exception(
-                "Error occurred during ResearchAgent retriever initialization."
+                "Error occurred during CustomVectorSearchExecutor retriever initialization."
             )
             # Re-raise the exception to indicate failure during initialization
             raise e
@@ -130,7 +135,7 @@ class CustomVectorSearchExecutor(Executor):
             raise ValueError(error_msg)
 
         if not isinstance(executor, str):
-            error_msg = f"'__executor__'  must be a string, got {type(executor)}."
+            error_msg = f"'__executor__' must be a string, got {type(executor)}."
             logger.error(error_msg)
             raise TypeError(error_msg)
         if executor not in self.func:
@@ -148,21 +153,27 @@ class CustomVectorSearchExecutor(Executor):
 
     def validate_result(self, result):
         """
-        Validates that result is alist and each item in the result is a dictionary
-        with a 'result' key containing a string and a 'score' key containing a numeric value.
+        Validates that result is a list and each item in the result is a dictionary
+
+        Expects `result` to be a list of dictionaries where each item has:
+            - 'result' (str): the retrieved text.
+            - 'score' (int or float): a numeric relevance score.
+            - 'source' (str or None): an identifier for the retrieved item, may be None.
+
+        On invalid input, a standardized error message is logged and an empty list is returned.
 
         Args:
-            result_list (list): List of dictionaries to validate.
+            result (list): List of dictionaries to validate.
 
         Returns:
-            bool: True if all dictionaries in the list are valid, False otherwise.
+            list: The validated result list if valid, empty list otherwise.
         """
 
         error_message = "Incorrect results format."
         error_message += (
             "\nThe result from the CustomRetriever must be a list of dictionaries."
         )
-        error_message += "\nEach dictionary must be in the following format: {'result': 'a string result', 'score': floating point score}"
+        error_message += "\nEach dictionary must be in the following format: {'result': <string>, 'score': <int or float>, 'source': <string or None>}"
 
         if not isinstance(result, list):
             logger.error(error_message)
@@ -172,6 +183,20 @@ class CustomVectorSearchExecutor(Executor):
             # Check if the item is a dictionary
             if not isinstance(item, dict):
                 logger.error(error_message)
+                return []
+
+            # Backward compatibility: 'source' is optional for custom retriever outputs (legacy {result, score} items).
+            # If present, it must be a str or None.
+            if "source" not in item and not self._legacy_format_warning_shown:
+                logger.warning(
+                    "[DEPRECATION WARNING] Custom retriever output without 'source' field is deprecated. "
+                    "Please update your retriever to include 'source' field in the format: "
+                    "{'result': str, 'score': float | int, 'source': str}. "
+                    "Support for legacy format {'result': str, 'score': float | int} will be removed in a future version."
+                )
+                self._legacy_format_warning_shown = True
+            elif "source" in item and not isinstance(item["source"], (str, type(None))):
+                logger.error("Invalid 'source' value in item: %s", item)
                 return []
 
             # Check if 'result' key exists and is a string

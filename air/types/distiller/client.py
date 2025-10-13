@@ -154,7 +154,7 @@ class DistillerMemoryRequestArgs(CustomBaseModel, extra="allow"):
     """
 
     source: str = Field(default="", description="The source of the memory query.")
-    variables_dict: Dict[str, str] = Field(
+    variables_dict: Dict[str, Any] = Field(
         default_factory=dict, description="Variables to be used in the memory query."
     )
     n_rounds: int = Field(
