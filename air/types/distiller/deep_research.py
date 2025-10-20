@@ -24,10 +24,12 @@ It defines:
         Streams discovered references with associated question IDs (in Iterative Researcher).
   - `DeepResearchSummaryStatisticsPayload`:
         Reports overall runtime statistics and resource usage.
+  - `DeepResearchIRQuestionDonePayload`:
+        Signals when a single research question completes (success or failure).
 """
 
 from enum import Enum
-from typing import Annotated, List, Literal, Union
+from typing import Annotated, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -65,6 +67,7 @@ class DeepResearchStep(Enum):
     START_ITERATIVE_RESEARCH = "start_iterative_research"
     ITERATIVE_RESEARCH_TASK_FAILED = "iterative_research_task_failed"
     ITERATIVE_RESEARCH_PIPELINE_ABORTED = "iterative_research_pipeline_aborted"
+    ITERATIVE_RESEARCH_QUESTION_DONE = "iterative_research_question_done"
 
     # Author steps
     START_AUTHOR = "start_author"
@@ -105,6 +108,7 @@ class DeepResearchStatus(str, Enum):
         THOUGHT_STATUS: Status of a specific thought or reasoning step.
         REFERENCE: Sources or references retrieved during the search phase.
         SUMMARY_STATISTICS: Runtime and usage metrics for the overall pipeline.
+        IR_QUESTION_DONE: Per-question completion event (success or failure).
     """
 
     PIPELINE_STEP = "pipeline_step"
@@ -113,6 +117,7 @@ class DeepResearchStatus(str, Enum):
     THOUGHT_STATUS = "thought_status"
     REFERENCE = "reference"
     SUMMARY_STATISTICS = "summary_statistics"
+    IR_QUESTION_DONE = "ir_question_done"
 
 
 class DeepResearchPipelineStepPayload(BaseModel):
@@ -204,6 +209,24 @@ class DeepResearchSummaryStatisticsPayload(BaseModel):
     )
 
 
+class DeepResearchIRQuestionDonePayload(BaseModel):
+    """
+    Payload indicating a single research question has completed (success or failure).
+    """
+
+    type: Literal["ir_question_done"] = Field(
+        description="Constant indicating a question-level completion event."
+    )
+    question_id: int = Field(description="The identifier for the research question.")
+    status: Literal["done", "failed"] = Field(
+        description="Final status of this question's iterative research."
+    )
+    message: Optional[str] = Field(
+        default=None,
+        description="Optional non-sensitive message for the client.",
+    )
+
+
 DeepResearchPayloadType = Annotated[
     Union[
         DeepResearchPipelineStepPayload,
@@ -212,6 +235,7 @@ DeepResearchPayloadType = Annotated[
         DeepResearchThoughtStatusPayload,
         DeepResearchReferencePayload,
         DeepResearchSummaryStatisticsPayload,
+        DeepResearchIRQuestionDonePayload,
     ],
     Field(discriminator="type"),
 ]

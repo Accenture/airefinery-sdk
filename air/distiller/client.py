@@ -16,7 +16,6 @@ from air.distiller.executor import (
     get_all_executor_agents,
     get_executor,
 )
-from air.distiller.pii_handler.pii_handler import PIIHandler
 from air.types.base import CustomBaseModel
 from air.types.distiller.client import (
     DistillerIncomingMessage,
@@ -648,9 +647,18 @@ class AsyncDistillerClient:
             base_config = project_config.get("base_config", {})
             pii_config = base_config.get("pii_masking", {})
             if pii_config.get("enable", False):
-                self.pii_handler = PIIHandler()
-                self.pii_handler.enable()
-                self.pii_handler.load_runtime_overrides(project_config)
+                try:
+                    from air.distiller.pii_handler.pii_handler import PIIHandler
+
+                    self.pii_handler = PIIHandler()
+                    self.pii_handler.enable()
+                    self.pii_handler.load_runtime_overrides(project_config)
+                except ImportError as e:
+                    raise ImportError(
+                        "PII handler dependencies are not installed. "
+                        "Please install with: pip install 'airefinery-sdk[pii]' "
+                        "to use PII detection and masking features."
+                    ) from e
 
         except Exception as e:
             print(f"Failed to connect: {e}")

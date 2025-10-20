@@ -11,6 +11,10 @@ import importlib
 # So we declare the mapping ourselves:
 _AGENT_CLASS_MAP = {
     "CustomAgent": ("air.distiller.executor.executor", "Executor"),
+    "CBInsightsAgent": (
+        "air.distiller.executor.cb_insights_executor",
+        "CBInsightsExecutor",
+    ),
     "AnalyticsAgent": (
         "air.distiller.executor.analytics_executor",
         "AnalyticsExecutor",
