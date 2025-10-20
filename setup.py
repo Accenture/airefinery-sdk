@@ -2,7 +2,7 @@
 
 from setuptools import find_packages, setup
 
-VERSION = "1.20.0"
+VERSION = "1.21.0"
 
 
 setup(
@@ -19,11 +19,10 @@ setup(
         "setuptools>=75.2.0",
         "numpy>=1.26.0",
         "pandas>=2.2.3",
-        "presidio-analyzer>=2.2.358",
-        "presidio-anonymizer>=2.2.358",
         "mcp>=1.6.0",
         "aiofiles>=24.1.0",
         "filelock>=3.15.3",
+        "tqdm>=4.67.0",
     ],
     include_package_data=True,
     entry_points={
@@ -54,9 +53,16 @@ setup(
                 ],
                 "tah-a2a": [
                     "a2a-sdk==0.2.8",
+                    "langchain-core>=0.3.68",
+                    "langchain-openai>=0.3.27",
+                    "langgraph>=0.5.2",
                 ],
                 "tah-databricks": [
                     "databricks-sdk>=0.57.0",
+                ],
+                "pii": [
+                    "presidio-analyzer>=2.2.358",
+                    "presidio-anonymizer>=2.2.358",
                 ],
             }
         ),
