@@ -16,7 +16,7 @@ Example usage:
         api_key="...",
     )
     response = sync_client.create(
-        model="meta-llama/Llama-4-Maverick-17B-128E-Instruct",
+        model="openai/gpt-oss-120b",
         input=["Hello world"],
         timeout=5.0,
         extra_headers={"X-Request-Id": "abc123"},      # per-request headers
@@ -28,7 +28,7 @@ Example usage:
         api_key="...",
     )
     response = await async_client.create(
-        model="meta-llama/Llama-4-Maverick-17B-128E-Instruct",
+        model="openai/gpt-oss-120b",
         input=["Hello async world"],
         timeout=5.0,
         extra_headers={"X-Request-Id": "xyz789"},
@@ -94,7 +94,7 @@ class ModerationsClient:  # pylint: disable=too-few-public-methods
         Creates moderations synchronously.
 
         Args:
-            model (str): The model name (e.g., "meta-llama/Llama-4-Maverick-17B-128E-Instruct").
+            model (str): The model name (e.g., "openai/gpt-oss-120b").
             input (list): A list of texts or tokens for which moderations should be generated.
             timeout (float | None): Maximum time (in seconds) to wait for a response
                 before timing out. Defaults to 60 if not provided.
