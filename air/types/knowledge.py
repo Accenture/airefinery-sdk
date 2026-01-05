@@ -23,7 +23,7 @@ class KnowledgeGraphConfig(BaseModel):
     chunk_size: int = Field(default=1200, description="Size of text chunks")
     chunk_overlap: int = Field(default=100, description="Overlap between text chunks")
     llm_model: str = Field(
-        default="meta-llama/Llama-3.1-70B-Instruct",
+        default="openai/gpt-oss-120b",
         description="LLM model to use for knowledge graph tasks",
     )
     embedding_model: str = Field(
