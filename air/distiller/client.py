@@ -12,6 +12,18 @@ from pydantic import BaseModel, ValidationError
 
 from air import BASE_URL, PostgresAPI, __version__
 from air.auth.token_provider import TokenProvider
+from air.distiller.exceptions import (
+    AuthenticationError,
+    ChatLoggingError,
+    ConnectionClosedError,
+    ConnectionTimeoutError,
+    HistoryRetrievalError,
+    ProjectCreationError,
+    ProjectDownloadError,
+    UserAlreadyConnectedError,
+    WebSocketReceiveError,
+    WebSocketSendError,
+)
 from air.distiller.executor import (
     get_all_executor_agents,
     get_executor,
@@ -160,7 +172,8 @@ class AsyncDistillerClient:
         self.api_key = api_key
 
         self.account = self.validate_api_key(api_key)
-        assert self.account, "Authentication failed."
+        if not self.account:
+            raise AuthenticationError("Failed to validate API key")
 
         # Initialize other attributes
         self.project = None
@@ -180,11 +193,18 @@ class AsyncDistillerClient:
         # Initialize last ping timestamp
         self._last_ping_received = None
 
+        # Configure queuing of PING messages
+        # Default: don't queue PING
+        self._queue_ping_messages = False
+
         # Initialize background tasks tracker
         self._wait_task_list = None
 
         # PII Handler potion (useful to identify & mask/unmask sensitive information)
         self.pii_handler = None
+
+        #  To track background errors
+        self._connection_fail_exception: Optional[Exception] = None
 
     def validate_api_key(self, api_key: str | TokenProvider):
         """
@@ -264,9 +284,9 @@ class AsyncDistillerClient:
         # Check the response status and return the result
         if response.status_code == 201:
             try:
-                repsonse_content = json.loads(response.content)
+                response_content = json.loads(response.content)
                 print(
-                    f"Project {project} - version {repsonse_content['project_version']} "
+                    f"Project {project} - version {response_content['project_version']} "
                     f"has been created for {self.account}."
                 )
             except json.JSONDecodeError:
@@ -277,7 +297,14 @@ class AsyncDistillerClient:
             print(f"Status code: {response.status_code}")
             print(f"Error Message: {str(response.content)}")
             print(response)
-            return False
+            raise ProjectCreationError(
+                f"Failed to create project '{project}'",
+                extra={
+                    "status_code": response.status_code,
+                    "error_message": str(response.content),
+                    "project": project,
+                },
+            )
 
     def validate_config(
         self,
@@ -387,6 +414,14 @@ class AsyncDistillerClient:
             return json.loads(response.text)
         else:
             print("Failed to download the config")
+            raise ProjectDownloadError(
+                f"Failed to download config for project '{project}'",
+                extra={
+                    "status_code": response.status_code,
+                    "project": project,
+                    "project_version": project_version,
+                },
+            )
 
     async def _send_loop(self):
         """
@@ -405,6 +440,13 @@ class AsyncDistillerClient:
             pass
         except Exception as e:
             print(f"Send loop error: {e}")
+            raise WebSocketSendError(f"Error in send loop: {e}", cause=e)
+
+    async def _process_message_hook(self, msg: dict) -> None:
+        """
+        Hook for subclasses to process messages before queuing.
+        Override in subclasses.
+        """
 
     async def _receive_loop(self):
         """
@@ -420,12 +462,17 @@ class AsyncDistillerClient:
                     msg = json.loads(message)
                 except:
                     print(f"Receive non json object {message}")
+                    logger.warning(f"Skipping non-JSON message: {message}")
                     continue
 
                 if msg.get("type", None) == "PING":
                     await self.send(DistillerPongMessage())
                     self._last_ping_received = asyncio.get_event_loop().time()
-                    continue
+                    if not self._queue_ping_messages:
+                        continue
+
+                # Allow subclasses to process messages differently
+                await self._process_message_hook(msg)
 
                 msg = DistillerIncomingMessage.model_validate(msg)
                 msg = await asyncio.to_thread(self.unmask_pii_if_needed, msg)
@@ -435,8 +482,51 @@ class AsyncDistillerClient:
         except asyncio.CancelledError:
             pass
 
+        except websockets.exceptions.ConnectionClosedOK:
+            if self.receive_queue:
+                await self.receive_queue.put(
+                    ConnectionClosedError(
+                        "Connection closed gracefully by server/client"
+                    )
+                )
+
+        except websockets.exceptions.ConnectionClosedError as e:
+            # Connection closed with an error (e.g. protocol error)
+
+            # 1. Check for User Already Connected
+            if e.code == 1011 and "User is already connected" in str(e.reason):
+                specific_error = UserAlreadyConnectedError(
+                    "User is already connected. Please disconnect the other session first.",
+                    extra={"close_code": e.code, "reason": e.reason},
+                )
+                self._connection_fail_exception = specific_error
+                if self.receive_queue:
+                    await self.receive_queue.put(specific_error)
+                return
+
+            # 2. Check for Server-Side Timeout (Fix for your issue)
+            # Matches "Connection timeout (Idle for X minutes)"
+            if "Connection timeout" in str(e.reason):
+                specific_error = ConnectionTimeoutError(
+                    f"Session disconnected: {e.reason}",
+                    extra={"close_code": e.code, "reason": e.reason},
+                )
+                self._connection_fail_exception = specific_error
+                if self.receive_queue:
+                    await self.receive_queue.put(specific_error)
+                return
+
+            # 3. Default handling for other closed errors
+            # Set the fail exception so _interactive_helper knows the real cause
+            self._connection_fail_exception = e
+
+            print(f"Connection closed with error in receive loop: {e}")
+            if self.receive_queue:
+                await self.receive_queue.put(e)
+
         except Exception as e:
             print(f"Receive loop error: {e}")
+            raise WebSocketReceiveError(f"Error in receive loop: {e}", cause=e)
 
     async def _ping_monitor(self):
         """
@@ -448,15 +538,45 @@ class AsyncDistillerClient:
         try:
             while True:
                 await asyncio.sleep(self.ping_interval)
+                # Check if we already have a specific failure (e.g., UserAlreadyConnected).
+                # If so, stop monitoring; we don't want to raise a generic TimeoutError
+                # and mask the real root cause.
+                if self._connection_fail_exception:
+                    raise self._connection_fail_exception
+
                 now = asyncio.get_event_loop().time()
-                if now - self._last_ping_received > 2 * self.ping_interval:
-                    print(
-                        "Ping monitor: No PING received in the last interval. Closing connection."
+                if now - self._last_ping_received > 100 * self.ping_interval:
+                    print("Ping monitor: No PING received in the last interval.")
+                    # Capture the specific error
+                    self._connection_fail_exception = ConnectionTimeoutError(
+                        "Connection timeout: No PING received from server",
+                        extra={
+                            "ping_interval": self.ping_interval,
+                            "last_ping": self._last_ping_received,
+                        },
                     )
-                    await self.close()
-                    break
+
+                    # Poison the queue so any hanging recv() wakes up immediately
+                    if self.receive_queue:
+                        await self.receive_queue.put(self._connection_fail_exception)
+
+                    # Raise the exception to fail the task
+                    raise self._connection_fail_exception
+
         except asyncio.CancelledError:
             pass
+
+        # Explicitly catch ConnectionTimeoutError and re-raise it
+        # so it doesn't get swallowed by the generic Exception handler below.
+        except ConnectionTimeoutError:
+            raise
+
+        except UserAlreadyConnectedError:
+            raise
+
+        except Exception as e:
+            # Catch unexpected errors in the monitor itself
+            print(f"Ping monitor crashed: {e}")
 
     def mask_payload_if_needed(
         self, payload: DistillerOutgoingMessage
@@ -525,6 +645,10 @@ class AsyncDistillerClient:
         Args:
         payload (dict): The payload to send.
         """
+        # Check for background failure
+        if self._connection_fail_exception:
+            raise self._connection_fail_exception
+
         # Apply PII masking if needed
         if isinstance(payload, DistillerOutgoingMessage):
             masked_payload = self.mask_payload_if_needed(payload)
@@ -543,10 +667,16 @@ class AsyncDistillerClient:
                 raise ConnectionError("Receive queue is empty after disconnect.")
 
             try:
-                msg = await asyncio.wait_for(self.receive_queue.get(), 0.1)
+                # Get item from queue
+                item = await asyncio.wait_for(self.receive_queue.get(), 0.1)
+
+                # Check if the item is an injected Exception (like a Timeout)
+                if isinstance(item, Exception):
+                    raise item
+
+                return item
             except TimeoutError:
                 continue
-            return msg
 
     async def connect(
         self,
@@ -597,12 +727,16 @@ class AsyncDistillerClient:
                     f"{base_url}/{self.account}/{self.project}/{uuid}",
                     additional_headers=headers,
                     max_size=self.max_size_ws_recv,
+                    ping_interval=None,
+                    ping_timeout=None,
                 )
             else:
                 self.connection = await websockets.connect(
                     f"{base_url}/{self.account}/{self.project}/{uuid}",
                     extra_headers=headers,
                     max_size=self.max_size_ws_recv,
+                    ping_interval=None,
+                    ping_timeout=None,
                 )
 
             # Start background tasks after successful connection
@@ -635,7 +769,10 @@ class AsyncDistillerClient:
                 project, project_version, __version__
             )
             if not project_config_dict:
-                raise ValueError("Project configuration could not be loaded.")
+                raise ProjectDownloadError(
+                    f"Project configuration could not be loaded for project '{project}'",
+                    extra={"project": project, "project_version": project_version},
+                )
 
             project_config = json.loads(json.loads(project_config_dict["config"]))
             self.initialize_executor(
@@ -662,6 +799,19 @@ class AsyncDistillerClient:
 
         except Exception as e:
             print(f"Failed to connect: {e}")
+            # Clean up background tasks before setting connection to None
+            tasks = [self._send_task, self._receive_task, self._ping_task]
+            for task in tasks:
+                if task and not task.done():
+                    task.cancel()
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        pass
+            # Clean up queues
+            self.send_queue = None
+            self.receive_queue = None
+            # Now safe to set connection to None
             self.connection = None
             raise
 
@@ -724,6 +874,7 @@ class AsyncDistillerClient:
             self.pii_handler.clear_mapping()
             self.pii_handler.clear_metadata()
         tasks = [self._send_task, self._receive_task, self._ping_task]
+
         for task in tasks:
             if task:
                 task.cancel()
@@ -780,6 +931,10 @@ class AsyncDistillerClient:
             request_args (dict): Arguments for the request.
             **kwargs: Additional keyword arguments.
         """
+        # Check if a background error occurred (like a timeout)
+        if self._connection_fail_exception:
+            raise self._connection_fail_exception
+
         assert self.project, "Project cannot be None. You should call connect first."
         assert self.uuid, "uuid cannot be None. You should call connect first."
 
@@ -851,18 +1006,28 @@ class AsyncDistillerClient:
 
                 if status not in ["wait", "complete"]:
                     if msg.content and db_client:
-                        await self._log_chat(
-                            db_client=db_client,
-                            project=self.project,
-                            uuid=self.uuid,
-                            message=msg,
-                        )
+                        try:
+                            await self._log_chat(
+                                db_client=db_client,
+                                project=self.project,
+                                uuid=self.uuid,
+                                message=msg,
+                            )
+                        except ChatLoggingError as e:
+                            # Log the error but don't break the streaming
+                            print(f"Failed to log chat: {e}")
                     if role != "user":
                         yield msg
         except websockets.ConnectionClosedOK:
             print("Connection closed gracefully by the server")
+            raise ConnectionClosedError(
+                "WebSocket connection closed gracefully by server"
+            )
         except websockets.ConnectionClosedError as e:
             print(f"Connection closed with error: {e}")
+            raise ConnectionClosedError(
+                f"WebSocket connection closed with error: {e}", cause=e
+            )
         except Exception as e:
             print(traceback.format_exc())
             raise e
@@ -979,10 +1144,23 @@ class AsyncDistillerClient:
                     ORDER BY timestamp DESC
                     LIMIT %s;"""
         response, success = await db_client.execute_query(query, [uuid, n_messages])
-        if not success or not response:
+
+        # If the query failed, raise an error
+        if not success:
             print(
                 f"Failed to retrieve past history for {self.account}_{project}_{uuid}."
             )
+            raise HistoryRetrievalError(
+                f"Failed to retrieve chat history",
+                extra={
+                    "account": self.account,
+                    "project": project,
+                    "uuid": uuid,
+                    "n_messages": n_messages,
+                },
+            )
+        # If the query succeeded but returned no results, return empty data
+        if not response:
             return "" if as_string else []
 
         messages = []
@@ -1034,6 +1212,10 @@ class AsyncDistillerClient:
 
         Returns:
             bool: True if logging is successful, False otherwise.
+
+        Raises:
+            ChatLoggingError: If table creation fails or message insertion fails.
+                Includes extra context in the exception for debugging.
         """
         assert self.account
         account = self.account.replace("-", "_")
@@ -1055,7 +1237,10 @@ class AsyncDistillerClient:
             print(
                 "Failed to create the account project table to log chat history in the database."
             )
-            return False
+            raise ChatLoggingError(
+                "Failed to create database table for chat history",
+                extra={"table_name": table_name},
+            )
 
         insert_query = f"""INSERT INTO {table_name} (uuid_timestamp, uuid, timestamp, role, content, full_content)
                            VALUES (%s, %s, %s, %s, %s, %s);"""
@@ -1072,7 +1257,10 @@ class AsyncDistillerClient:
         )
         if not insertion_response_success:
             print("Failed to upload the json output to the database.")
-            return False
+            raise ChatLoggingError(
+                "Failed to insert chat message into database",
+                extra={"table_name": table_name, "uuid": uuid, "role": message.role},
+            )
         return True
 
     def __call__(self, **kwargs) -> "_DistillerContextManager":
@@ -1114,24 +1302,90 @@ class AsyncDistillerClient:
             executor_dict (dict[str, Callable], optional):
                            Custom agent handlers. Defaults to {}.
         """
-        async with self(
-            project=project,
-            uuid=uuid,
-            executor_dict=executor_dict,
-        ) as dc:
-            while True:
-                query = await async_input("%%% USER %%%\n")
-                responses = await dc.query(query=query)
-                async for response in responses:
-                    if (not response.role) or (not response.content):
 
-                        continue
+        try:
+            async with self(
+                project=project,
+                uuid=uuid,
+                executor_dict=executor_dict,
+            ) as dc:
+                while True:
+                    # 1. Create a task for user input
+                    input_task = asyncio.create_task(async_input("%%% USER %%%\n"))
 
-                    await async_print()
-                    await async_print(f"%%% AGENT {response.role} %%%")
-                    await async_print(response.content)
-                    await async_print()
-                    pass
+                    # 2. Define tasks to watch
+                    # We must watch the receive_task. If the server kills the connection,
+                    # this task completes immediately.
+                    monitor_tasks: list[asyncio.Task[Any]] = [input_task]
+
+                    if self._ping_task and not self._ping_task.done():
+                        monitor_tasks.append(self._ping_task)
+
+                    if self._receive_task and not self._receive_task.done():
+                        monitor_tasks.append(self._receive_task)
+
+                    # 3. Wait for the FIRST one to complete
+                    done, pending = await asyncio.wait(
+                        monitor_tasks, return_when=asyncio.FIRST_COMPLETED
+                    )
+
+                    # 4. Cleanup pending input task immediately if we are exiting
+                    if input_task not in done:
+                        input_task.cancel()
+                        try:
+                            await input_task
+                        except asyncio.CancelledError:
+                            pass
+
+                    # 5. Check which task finished
+                    # CASE A: The Ping Monitor failed
+                    if self._ping_task in done:
+                        exc = self._ping_task.exception()
+                        if exc:
+                            raise exc
+                        else:
+                            raise ConnectionClosedError(
+                                "Connection monitor stopped unexpectedly."
+                            )
+
+                    # CASE B: The Receive Loop finished (Server disconnected us)
+                    if self._receive_task in done:
+                        # 1. Check if we saved a specific exception (e.g. UserAlreadyConnected)
+                        if self._connection_fail_exception:
+                            raise self._connection_fail_exception
+
+                        # 2. Check if the task crashed with an exception
+                        exc = self._receive_task.exception()
+                        if exc:
+                            raise exc
+
+                        # 3. If it finished gracefully but we shouldn't be here
+                        raise ConnectionClosedError("Server closed connection.")
+
+                    # CASE C: The User Input finished
+                    if input_task in done:
+                        query = input_task.result()
+                        # Proceed with normal query logic
+                        responses = await dc.query(query=query)
+                        async for response in responses:
+                            if (not response.role) or (not response.content):
+                                continue
+                            await async_print()
+                            await async_print(f"%%% AGENT {response.role} %%%")
+                            await async_print(response.content)
+                            await async_print()
+
+        except UserAlreadyConnectedError as e:
+            print(f"\n[Error] Connection refused: {e.message}")
+            print("Please close the other session and try again.")
+            # Re-raise to see the full stack trace and exception type
+            raise
+        except ConnectionTimeoutError as e:
+            print(f"\n[Error] Session disconnected: {e}")
+            print("Please restart the interactive session.")
+            raise
+        except Exception as e:
+            print(f"\n[Error] An unexpected error occurred: {e}")
 
     def interactive(
         self,

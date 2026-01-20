@@ -18,7 +18,6 @@ from httpx import Response
 from air.distiller.executor.executor import Executor
 from air.types.distiller.executor.writer_config import WriterAIAgentConfig
 
-
 logger = logging.getLogger(__name__)
 
 try:
@@ -63,7 +62,7 @@ class WriterExecutor(Executor):
             role: The role identifier for this executor (e.g., "agent").
             utility_config: A configuration dictionary containing:
                 - "application_id": The app_id to reach out to Writer AI agent instance.
-                - "api_key_env_var": The name of local variable that stores token for the Writer agent.
+                - "api_key_env_var": Name of local variable that stores token for the Writer agent.
             return_string: Flag to determine if the result should be returned as a string.
 
         Raises:
@@ -193,7 +192,7 @@ class WriterExecutor(Executor):
         from the API response.
 
         Args:
-            inputs (list): A list of input dictionaries conforming to the Writer agent's input schema.
+            inputs (list): A list of input dictionaries conforming to Writer agent's input schema.
                         Each dictionary should include "id", "name", and "value" keys.
 
         Returns:

@@ -21,3 +21,24 @@ from air.types.knowledge import (
 )
 from air.types.models import Model
 from air.types.moderations import ModerationCreateResponse
+from air.types.distiller.realtime import (
+    RealtimeEvent,
+    RealtimeEventBase,
+    SessionCreatedEvent,
+    ResponseTranscriptDeltaEvent,
+    ResponseTranscriptDoneEvent,
+    ResponseCreatedEvent,
+    ResponseAudioDeltaEvent,
+    ResponseAudioDoneEvent,
+    ResponseDoneEvent,
+    ResponseTextDeltaEvent,
+    ResponseTextDoneEvent,
+    InputAudioAppendEvent,
+    InputTextEvent,
+    ResponseCancelEvent,
+    InputAudioCommitEvent,
+    InputAudioClearEvent,
+    SessionUpdateEvent,
+    ClientRequestEvent,
+    ServerResponseEvent,
+)

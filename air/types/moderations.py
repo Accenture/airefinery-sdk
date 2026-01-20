@@ -28,10 +28,8 @@ class Categories(CustomBaseModel):
     flags the corresponding category as violated, false otherwise.
     """
 
-    harassment: bool = Field(
-        description="Content that expresses, incites, \
-                    or promotes harassing language towards any target."
-    )
+    harassment: bool = Field(description="Content that expresses, incites, \
+                    or promotes harassing language towards any target.")
 
     harassment_threatening: bool = Field(
         alias="harassment/threatening",
@@ -39,13 +37,11 @@ class Categories(CustomBaseModel):
                     violence or serious harm towards any target.",
     )
 
-    hate: bool = Field(
-        description="Content that expresses, incites, or promotes hate \
+    hate: bool = Field(description="Content that expresses, incites, or promotes hate \
                     based on race, gender, ethnicity, religion, \
                     nationality, sexual orientation, disability status, \
                     or caste. Hateful content aimed at non-protected \
-                    groups (e.g., chess players) is harassment."
-    )
+                    groups (e.g., chess players) is harassment.")
 
     hate_threatening: bool = Field(
         alias="hate/threatening",
@@ -92,12 +88,10 @@ class Categories(CustomBaseModel):
                     such as suicide, cutting, and eating disorders.",
     )
 
-    sexual: bool = Field(
-        description="Content meant to arouse sexual excitement, \
+    sexual: bool = Field(description="Content meant to arouse sexual excitement, \
                     such as the description of sexual activity, \
                     or that promotes sexual services \
-                    (excluding sex education and wellness)."
-    )
+                    (excluding sex education and wellness).")
 
     sexual_minors: bool = Field(
         alias="sexual/minors",

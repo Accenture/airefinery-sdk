@@ -77,11 +77,21 @@ class DistillerIncomingMessage(CustomBaseModel, extra="allow"):
     )
     content: str = Field(default="", description="The content of the message.")
     status: str = Field(default="", description="The status of the message.")
+    audio: Optional[str] = Field(
+        default=None, description="Optional audio data associated with the message."
+    )
+    delta: Optional[str] = Field(
+        default=None, description="Optional delta data for incremental updates."
+    )
     image: Optional[dict] = Field(
         default=None, description="Optional image associated with the message."
     )
     metadata: Optional[Dict[str, Any]] = Field(
         default={}, description="Metadata associated with the message."
+    )
+    text: Optional[str] = Field(
+        default=None,
+        description="Optional text content for transcription or other text data.",
     )
     video: Optional[str] = Field(
         default=None, description="Optional video associated with the message."
