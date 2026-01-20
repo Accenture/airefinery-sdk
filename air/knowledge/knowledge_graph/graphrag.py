@@ -248,7 +248,7 @@ class GraphRAG(BaseKnowledgeGraph):
             )
             return False
         updated_graph = await asyncio.to_thread(nx.read_graphml, updated_graph_path)
-        updated_graph = nx.compose(original_graph, updated_graph)  # type:ignore
+        updated_graph = nx.compose(original_graph, updated_graph)  # type: ignore
         try:
             # use secure path handling for all file operations
             output_dir = secure_join(self.work_dir, "output")

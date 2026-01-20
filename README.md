@@ -144,7 +144,7 @@ async def simple_agent(query: str):
 
     response = await client.chat.completions.create(
         messages=[{"role": "user", "content": prompt}],
-        model="meta-llama/Llama-3.1-70B-Instruct",
+        model="openai/gpt-oss-120b",
     )
     return response.choices[0].message.content
 

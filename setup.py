@@ -2,7 +2,7 @@
 
 from setuptools import find_packages, setup
 
-VERSION = "1.23.0"
+VERSION = "1.24.0"
 
 
 setup(
@@ -40,7 +40,7 @@ setup(
                 ],
                 "tah-azure-ai": [
                     "azure-ai-projects==1.0.0b8",
-                    "azure-identity>=1.19.0",
+                    "azure-identity==1.26.0b1",
                 ],
                 "tah-writer-ai": ["writer-sdk>=2.2.0"],
                 "knowledge": [
@@ -63,6 +63,9 @@ setup(
                 "pii": [
                     "presidio-analyzer>=2.2.358",
                     "presidio-anonymizer>=2.2.358",
+                ],
+                "realtime": [
+                    "sounddevice>=0.5.1",
                 ],
             }
         ),

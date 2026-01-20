@@ -6,6 +6,7 @@ Includes:
 - AsyncKnowledgeClient for accessing the knowledge graph.
 - KnowledgeClient for document processing tasks.
 """
+
 import asyncio
 from functools import cached_property
 

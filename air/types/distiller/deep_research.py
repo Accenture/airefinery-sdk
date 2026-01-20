@@ -79,6 +79,12 @@ class DeepResearchStep(Enum):
     END_AUDIO = "end_audio"
     FAIL_AUDIO = "fail_audio"
 
+    # Report rendering steps
+    START_RENDER_REPORT = "start_render_report"
+    END_RENDER_REPORT = "end_render_report"
+    FAIL_PARTIAL_RENDER_REPORT = "fail_partial_render_report"
+    FAIL_ALL_RENDER_REPORT = "fail_all_render_report"
+
     # Dedicated handler steps
     THOUGHT_STATUS = "thought_status"
     LOG_REFS = "log_refs"

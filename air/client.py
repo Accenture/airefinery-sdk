@@ -3,11 +3,12 @@
 A module that defines top-level clients (synchronous and asynchronous)
 to interact with sub-clients such as chat, embeddings, models, and distiller.
 """
+
 from air import BASE_URL
 from air.audio import AsyncAudio, Audio
 from air.auth import TokenProvider
 from air.chat import AsyncChatClient, ChatClient
-from air.distiller import AsyncDistillerClient
+from air.distiller import AsyncDistillerClient, AsyncRealtimeDistillerClient
 from air.embeddings import (
     AsyncEmbeddingsClient,
     EmbeddingsClient,
@@ -135,6 +136,12 @@ class AsyncAIRefinery:  # pylint: disable=too-many-instance-attributes,too-few-p
         )
         # Provides async distiller functionalities
         self.distiller = AsyncDistillerClient(
+            base_url=self.base_url,
+            api_key=self.api_key,
+            default_headers=self.default_headers,
+        )
+        # Provides async realtime distiller functionalities
+        self.realtime_distiller = AsyncRealtimeDistillerClient(
             base_url=self.base_url,
             api_key=self.api_key,
             default_headers=self.default_headers,
@@ -306,4 +313,14 @@ class AIRefinery:  # pylint: disable=too-many-instance-attributes,too-few-public
         """
         raise NotImplementedError(
             "Distiller is only available in async mode. Please use AsyncAIRefinery instead."
+        )
+
+    @property
+    def realtime_distiller(self):
+        """
+        Realtime Distiller is only supported in the asynchronous client.
+        Accessing this property in the synchronous client will raise a NotImplementedError.
+        """
+        raise NotImplementedError(
+            "Realtime Distiller is only available in async mode. Please use AsyncAIRefinery instead."
         )
