@@ -24,9 +24,16 @@ from importlib import metadata as _metadata
 try:
     __version__: str = _metadata.version(__package__ or "airefinery-sdk")
 except _metadata.PackageNotFoundError:  # pragma: no cover
-    __version__ = "1.24.0"
+    __version__ = "1.25.0"
 
-BASE_URL: str = os.getenv("AIR_BASE_URL", "https://api.airefinery.accenture.com")
+# Decide the default base url
+DEFAULT_BASE_URL = (
+    "https://api-prod-k8s.airefinery.accenture.com"
+    if os.getenv("USE_AIR_API_V2_BASE_URL", "").lower() in {"1", "true"}
+    else "https://api.airefinery.accenture.com"
+)
+
+BASE_URL: str = os.getenv("AIR_BASE_URL", DEFAULT_BASE_URL)
 CACHE_DIR: pathlib.Path = pathlib.Path(os.getenv("AIR_CACHE_DIR", ".air"))
 
 # ------------------------------------------------------------------------------

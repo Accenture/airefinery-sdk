@@ -729,6 +729,7 @@ class AsyncDistillerClient:
                     max_size=self.max_size_ws_recv,
                     ping_interval=None,
                     ping_timeout=None,
+                    open_timeout=60,  # Increase from default 10s for high-load scenarios
                 )
             else:
                 self.connection = await websockets.connect(
@@ -737,6 +738,7 @@ class AsyncDistillerClient:
                     max_size=self.max_size_ws_recv,
                     ping_interval=None,
                     ping_timeout=None,
+                    open_timeout=60,  # Increase from default 10s for high-load scenarios
                 )
 
             # Start background tasks after successful connection

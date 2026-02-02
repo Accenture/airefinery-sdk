@@ -14,11 +14,14 @@ from contextlib import asynccontextmanager, contextmanager
 from functools import cached_property
 from typing import (
     IO,
+    Any,
     AsyncGenerator,
     AsyncIterator,
     Generator,
     Iterator,
+    List,
     Literal,
+    Optional,
     Union,
     cast,
     overload,
@@ -40,6 +43,7 @@ from air.types.audio import (
     ResponseContextManager,
     Stream,
     TranscriptionStreamEvent,
+    TranscriptionVerbose,
 )
 from air.utils import get_base_headers, get_base_headers_async
 
@@ -88,15 +92,18 @@ class AsyncASRClient:  # pylint: disable=too-few-public-methods
         file: IO[bytes],
         *,
         chunking_strategy: Union[str, ChunkingStrategy] = "auto",
-        language: str = "en-US",
-        response_format: str = "json",
+        language: Optional[str] = "en-US",
+        response_format: Literal["json", "verbose_json", "text"] = "json",
+        timestamp_granularities: Optional[List[Literal["segment", "word"]]] = None,
+        # include: Optional[List[Literal["confidence", "segment"]]] = None,
+        #   FUTURE: Uncomment to re-enable include parameter
         stream: bool = False,
         extra_headers: dict[str, str] | None = None,
         extra_body: dict[str, str] | None = None,
         timeout: float | None = None,
         **kwargs,
     ) -> (
-        ASRResponse | AsyncStream[TranscriptionStreamEvent]
+        ASRResponse | TranscriptionVerbose | AsyncStream[TranscriptionStreamEvent]
     ):  # pylint: disable=too-many-arguments, disable=too-many-locals
         """
         Creates speech-to-text transcriptions asynchronously.
@@ -107,6 +114,9 @@ class AsyncASRClient:  # pylint: disable=too-few-public-methods
             chunking_strategy: Optional Parameters to configure server-side VAD
             language: Optional override for the speech recognition language.
             response_format: Output format (currently unused, reserved for future use).
+            timestamp_granularities: List of timestamp types to include - ["segment", "word"].
+            # include: List of additional word-level fields to include - ["confidence", "segment"].
+            #   FUTURE: Uncomment to re-enable include parameter
             stream: Whether streaming is enabled (currently unused).
             timeout: Request timeout in seconds
             extra_headers: Additional HTTP headers to include
@@ -132,6 +142,17 @@ class AsyncASRClient:  # pylint: disable=too-few-public-methods
         )
         form.add_field("language", language)
         form.add_field("response_format", response_format)
+        form.add_field(
+            "timestamp_granularities",
+            json.dumps(timestamp_granularities) if timestamp_granularities else "[]",
+        )
+        # FUTURE: Uncomment below to re-enable include parameter functionality
+        # form.add_field(
+        #     "include",
+        #     json.dumps(include) if include else "[]",
+        # )
+        # For now, always include confidence and segment fields
+        form.add_field("include", json.dumps(["confidence", "segment"]))
         form.add_field("stream", str(stream))
         form.add_field("timeout", str(timeout))
         form.add_field(
@@ -178,6 +199,8 @@ class AsyncASRClient:  # pylint: disable=too-few-public-methods
                 ) as resp:
                     resp.raise_for_status()
                     data = await resp.json()
+                    if response_format == "verbose_json":
+                        return TranscriptionVerbose.model_validate(data)
                     return ASRResponse.model_validate(data)
 
         class _StreamWrapper:
@@ -232,9 +255,11 @@ class AsyncTranscriptionsWithStreamingResponse:  # pylint: disable=too-few-publi
         chunking_strategy: Union[str, ChunkingStrategy] = "auto",
         language: str = "en-US",
         response_format: str = "json",
+        timestamp_granularities: list[str] | None = None,
+        # include: list[str] | None = None,  # FUTURE: Uncomment to re-enable include parameter
         stream: bool = False,
         extra_headers: dict[str, str] | None = None,
-        extra_body: dict[str, str] | None = None,
+        extra_body: dict[str, Any] | None = None,
         timeout: float | None = None,
         **kwargs,
     ) -> (
@@ -281,6 +306,17 @@ class AsyncTranscriptionsWithStreamingResponse:  # pylint: disable=too-few-publi
         )
         form.add_field("language", language)
         form.add_field("response_format", response_format)
+        form.add_field(
+            "timestamp_granularities",
+            json.dumps(timestamp_granularities) if timestamp_granularities else "[]",
+        )
+        # FUTURE: Uncomment below to re-enable include parameter functionality
+        # form.add_field(
+        #     "include",
+        #     json.dumps(include) if include else "[]",
+        # )
+        # For now, always include confidence and segment fields
+        form.add_field("include", json.dumps(["confidence", "segment"]))
         form.add_field("stream", str(stream))
         form.add_field("timeout", str(timeout))
         form.add_field(
@@ -396,7 +432,22 @@ class ASRClient:  # pylint: disable=too-few-public-methods
     ) -> Stream[TranscriptionStreamEvent]: ...
 
     @overload
-    def create(self, *, stream: Literal[False] = False, **kwargs) -> ASRResponse: ...
+    def create(
+        self,
+        *,
+        stream: Literal[False] = False,
+        response_format: Literal["json"] = "json",
+        **kwargs,
+    ) -> ASRResponse: ...
+
+    @overload
+    def create(
+        self,
+        *,
+        stream: Literal[False] = False,
+        response_format: Literal["verbose_json"],
+        **kwargs,
+    ) -> TranscriptionVerbose: ...
 
     def create(
         self,
@@ -404,15 +455,18 @@ class ASRClient:  # pylint: disable=too-few-public-methods
         file: IO[bytes],
         *,
         chunking_strategy: Union[str, ChunkingStrategy] = "auto",
-        language: str = "en-US",
-        response_format: str = "json",
+        language: Optional[str] = "en-US",
+        response_format: Literal["json", "verbose_json", "text"] = "json",
+        timestamp_granularities: Optional[List[Literal["segment", "word"]]] = None,
+        # include: Optional[List[Literal["confidence", "segment"]]] = None,
+        #   FUTURE: Uncomment to re-enable include parameter
         stream: bool = False,
         extra_headers: dict[str, str] | None = None,
         extra_body: dict[str, str] | None = None,
         timeout: float | None = None,
         **kwargs,
     ) -> (
-        ASRResponse | Stream[TranscriptionStreamEvent]
+        ASRResponse | TranscriptionVerbose | Stream[TranscriptionStreamEvent]
     ):  # pylint: disable=too-many-arguments, disable=too-many-locals
         """
         Creates speech-to-text transcriptions synchronously.
@@ -439,6 +493,13 @@ class ASRClient:  # pylint: disable=too-few-public-methods
             ),
             "language": language,
             "response_format": response_format,
+            "timestamp_granularities": (
+                json.dumps(timestamp_granularities) if timestamp_granularities else "[]"
+            ),
+            # FUTURE: Uncomment below to re-enable include parameter functionality
+            # "include": json.dumps(include) if include else "[]",
+            # For now, always include confidence and segment fields
+            "include": json.dumps(["confidence", "segment"]),
             "stream": stream,
             "extra_body": json.dumps(extra_body) if extra_body is not None else "{}",
             "timeout": timeout,
@@ -476,6 +537,8 @@ class ASRClient:  # pylint: disable=too-few-public-methods
                 timeout=timeout,
             )
             resp.raise_for_status()
+            if response_format == "verbose_json":
+                return TranscriptionVerbose.model_validate(resp.json())
             return ASRResponse.model_validate(resp.json())
 
         def _iter() -> Stream[TranscriptionStreamEvent]:
@@ -527,6 +590,8 @@ class TranscriptionsWithStreamingResponse:  # pylint: disable=too-few-public-met
         chunking_strategy: Union[str, ChunkingStrategy] = "auto",
         language: str = "en-US",
         response_format: str = "json",
+        timestamp_granularities: list[str] | None = None,
+        # include: list[str] | None = None,  # FUTURE: Uncomment to re-enable include parameter
         stream: bool = False,
         extra_headers: dict[str, str] | None = None,
         extra_body: dict[str, str] | None = None,
@@ -569,6 +634,13 @@ class TranscriptionsWithStreamingResponse:  # pylint: disable=too-few-public-met
             ),
             "language": language,
             "response_format": response_format,
+            "timestamp_granularities": (
+                json.dumps(timestamp_granularities) if timestamp_granularities else "[]"
+            ),
+            # FUTURE: Uncomment below to re-enable include parameter functionality
+            # "include": json.dumps(include) if include else "[]",
+            # For now, always include confidence and segment fields
+            "include": json.dumps(["confidence", "segment"]),
             "stream": stream,
             "extra_body": json.dumps(extra_body) if extra_body is not None else "{}",
             "timeout": timeout,
