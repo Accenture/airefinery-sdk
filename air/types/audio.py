@@ -33,7 +33,7 @@ from typing import (
 
 import aiofiles
 
-from pydantic import TypeAdapter, ValidationError
+from pydantic import TypeAdapter, Field
 
 from air.types.base import CustomBaseModel
 
@@ -92,7 +92,7 @@ class TTSResponse:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Exit sync context manager."""
-        pass
+        ...
 
     def json(self, **kwargs: Any) -> Any:
         """Parse content as JSON (not applicable for audio, but maintaining interface)."""
@@ -178,7 +178,6 @@ class TTSResponse:
 
     def close(self) -> None:
         """Close the response."""
-        pass
 
     # Async methods to match OpenAI's interface
     async def aread(self) -> bytes:
@@ -191,7 +190,6 @@ class TTSResponse:
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Exit async context manager."""
-        pass
 
     async def aiter_bytes(self, chunk_size: int | None = None) -> AsyncIterator[bytes]:
         """Async iteration over content in byte chunks.
@@ -260,23 +258,108 @@ class TTSResponse:
 
     async def aclose(self) -> None:
         """Async close the response"""
-        pass
+
+
+class TranscriptionVerbose(CustomBaseModel):
+    """Detailed ASR response with nested models."""
+
+    class Word(CustomBaseModel):
+        """Word-level timing and confidence information."""
+
+        word: str = Field(description="The transcribed word text")
+        start: float = Field(description="Start time of the word in seconds", ge=0.0)
+        end: float = Field(description="End time of the word in seconds", ge=0.0)
+        confidence: Optional[float] = Field(
+            default=None,
+            description="Word-level confidence score (0.0-1.0) - always included",
+            ge=0.0,
+            le=1.0,
+        )
+        segment: Optional[int] = Field(
+            default=None,
+            description="ID of the segment this word belongs to - always included",
+            ge=0,
+        )
+
+        # FUTURE: Uncomment below to re-enable conditional field inclusion
+        #   based on include parameter
+        # def model_dump(self, **kwargs):
+        #     """Custom serialization that excludes None values."""
+        #     # Get the default dump
+        #     data = super().model_dump(**kwargs)
+        #     # Remove None values
+        #     return {k: v for k, v in data.items() if v is not None}
+
+    class Segment(CustomBaseModel):
+        """Segment-level transcription with detailed metadata."""
+
+        id: int = Field(description="Unique identifier for this segment", ge=0)
+        seek: float = Field(
+            description="Where the segment starts in the original audio",
+            ge=0.0,
+        )
+        start: float = Field(description="Start time of the segment in seconds", ge=0.0)
+        end: float = Field(description="End time of the segment in seconds", ge=0.0)
+        text: str = Field(
+            description="Transcribed text for this segment",
+        )
+        avg_logprob: float = Field(
+            description="Log Average of word-level confidence scores in a segment",
+            le=0.0,
+        )
+        compression_ratio: float = Field(
+            description="Ratio of number of words to the length of the segment",
+            gt=0.0,
+        )
+        speaker_id: Optional[Literal["Guest-1", "Guest-2", "Guest-3", "Unknown"]] = (
+            Field(
+                default=None,
+                description="Speaker identification from Azure ConversationTranscriber",
+            )
+        )
+
+    # Main response fields
+    task: Literal["transcribe"] = Field(
+        default="transcribe",
+        description="The type of task performed (ASR)",
+    )
+    language: str = Field(
+        description=(
+            "Language code of the detected/specified language "
+            "(e.g., en-US, es-ES, fr-FR, de-DE, ja-JP, zh-CN, etc.)"
+        ),
+        pattern=r"^[a-z]{2}-[A-Z]{2}$",
+    )
+    duration: float = Field(
+        description="Total duration of the audio in seconds", ge=0.0
+    )
+    text: str = Field(
+        description="Complete transcribed text from all segments",
+    )
+    words: Optional[List[Word]] = Field(
+        default=None,
+        description="List of word-level timing data (when requested)",
+    )
+    segments: List[Segment] = Field(
+        description="List of transcription segments with timing and metadata",
+        min_length=0,
+    )
+    speakers: Optional[List[Literal["Guest-1", "Guest-2", "Guest-3", "Unknown"]]] = (
+        Field(
+            default=None,
+            description="List of unique speakers detected in the audio",
+        )
+    )
 
 
 class ASRResponse(CustomBaseModel):
-    """Top-level Automatic Speech Recognition response returned by the API.
+    """Simplified Automatic Speech Recognition response returned by the API.
 
     Attributes:
-        text (Union[str, None]): The transcription of the audio file
-        success (bool): Whether the transcription request was successful
-        error (Optional[str]): Optional error message if transcription was not successful
-        confidence (Optional[float]): Optional confidence of the tokens
+        text (str): The transcription of the audio file
     """
 
-    text: Union[str, None]
-    success: bool
-    error: Optional[str] = None
-    confidence: Optional[float] = None
+    text: str
 
 
 class ChunkingStrategy(TypedDict, total=False):
@@ -323,14 +406,31 @@ class TranscriptionTextDeltaEvent(CustomBaseModel):
     log probabilities if requested.
 
     Attributes:
-        delta (str): The text delta that was additionally transcribed.
+        text (str): The text delta that was additionally transcribed.
         type (Literal["transcript.text.delta"]): Type of the event. Always "transcript.text.delta".
         logprobs (Optional[List[Logprob]]): The log probabilities of the tokens in the delta.
+        words (Optional[List[TranscriptionVerbose.Word]]): Word-level details with timing and
+            confidence.
+        id (Optional[int]): Sequential integer identifier for this recognition result.
+        offset (Optional[float]): Start time offset in seconds.
+        duration (Optional[float]): Duration of this segment in seconds.
+        primary_language (Optional[str]): Primary language detected.
+        channel (Optional[int]): Audio channel number.
+        result_type (Optional[str]): Recognition result type (e.g., "Intermediate").
+        speaker_id (Optional[str]): Speaker identifier if available.
     """
 
-    delta: str
+    text: str
     type: Literal["transcript.text.delta"]
     logprobs: Optional[List[Logprob]] = None
+    words: Optional[List["TranscriptionVerbose.Word"]] = None
+    id: Optional[int] = None
+    offset: Optional[float] = None
+    duration: Optional[float] = None
+    primary_language: Optional[str] = None
+    channel: Optional[int] = None
+    result_type: Optional[str] = None
+    speaker_id: Optional[str] = None
 
 
 class TranscriptionTextDoneEvent(CustomBaseModel):
@@ -344,17 +444,74 @@ class TranscriptionTextDoneEvent(CustomBaseModel):
         text (str): The text that was transcribed.
         type (Literal["transcript.text.done"]): Type of the event. Always "transcript.text.done".
         logprobs (Optional[List[Logprob]]): The log probability of each token in the transcription.
+        words (Optional[List[TranscriptionVerbose.Word]]): Word-level details with timing and
+            confidence.
     """
 
     text: str
     type: Literal["transcript.text.done"]
     logprobs: Optional[List[Logprob]] = None
+    words: Optional[List["TranscriptionVerbose.Word"]] = None
 
 
-# A union type representing streaming transcription delta/done events, used for parsing.
+class TranscriptionWordEvent(CustomBaseModel):
+    """
+    Represents a real-time word-level transcription event with timing and confidence.
+
+    This event provides detailed word-level information as it becomes available during
+    streaming transcription, including precise timing and confidence scores.
+
+    Attributes:
+        word (str): The transcribed word.
+        start (float): Start time of the word in seconds.
+        end (float): End time of the word in seconds.
+        confidence (Optional[float]): Confidence score for the word.
+        segment (Optional[int]): Segment ID this word belongs to.
+        type (Literal["transcript.word"]): Type of the event. Always "transcript.word".
+    """
+
+    word: str = Field(description="The transcribed word")
+    start: float = Field(description="Start time of the word in seconds", ge=0.0)
+    end: float = Field(description="End time of the word in seconds", ge=0.0)
+    confidence: Optional[float] = Field(
+        default=None,
+        description="Confidence score for the word (0.0-1.0)",
+        ge=0.0,
+        le=1.0,
+    )
+    segment: Optional[int] = Field(
+        default=None, description="Segment ID this word belongs to", ge=0
+    )
+    type: Literal["transcript.word"] = Field(description="Event type identifier")
+
+
+class TranscriptionSegmentEvent(CustomBaseModel):
+    """
+    Represents a real-time segment-level transcription event with speaker and metadata.
+
+    This event provides complete segment information as it becomes available during
+    streaming transcription, including speaker identification and detailed metadata.
+
+    Attributes:
+        segment (.Segment): Complete segment data with timing and metadata.
+        type (Literal["transcript.segment"]): Type of the event. Always "transcript.segment".
+    """
+
+    segment: "TranscriptionVerbose.Segment" = Field(
+        description="Complete segment data with timing and metadata"
+    )
+    type: Literal["transcript.segment"] = Field(description="Event type identifier")
+
+
+# A union type representing streaming transcription events, used for parsing.
 # The `type` field is used as a discriminator to determine the event variant.
 TranscriptionStreamEvent: TypeAlias = Annotated[
-    Union[TranscriptionTextDeltaEvent, TranscriptionTextDoneEvent],
+    Union[
+        TranscriptionTextDeltaEvent,
+        TranscriptionTextDoneEvent,
+        TranscriptionWordEvent,
+        TranscriptionSegmentEvent,
+    ],
     {"discriminator": "type"},
 ]
 

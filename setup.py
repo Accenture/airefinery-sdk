@@ -2,7 +2,7 @@
 
 from setuptools import find_packages, setup
 
-VERSION = "1.24.0"
+VERSION = "1.25.0"
 
 
 setup(
@@ -41,6 +41,7 @@ setup(
                 "tah-azure-ai": [
                     "azure-ai-projects==1.0.0b8",
                     "azure-identity==1.26.0b1",
+                    "azure-storage-blob>=12.24.1",
                 ],
                 "tah-writer-ai": ["writer-sdk>=2.2.0"],
                 "knowledge": [
