@@ -24,7 +24,7 @@ from importlib import metadata as _metadata
 try:
     __version__: str = _metadata.version(__package__ or "airefinery-sdk")
 except _metadata.PackageNotFoundError:  # pragma: no cover
-    __version__ = "1.25.0"
+    __version__ = "1.26.0"
 
 # Decide the default base url
 DEFAULT_BASE_URL = (

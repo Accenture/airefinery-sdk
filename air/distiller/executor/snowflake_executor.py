@@ -195,7 +195,7 @@ class SnowflakeExecutor(Executor):
                 print("An error occurred while processing the response:", e)
         else:
             logger.exception("Failed to retrieve messages from the Snowflake agent.")
-            raise Exception("Failed to retrieve messages from the Snowflake agent.")
+            raise RuntimeError("Failed to retrieve messages from the Snowflake agent.")
 
         return response_text
 

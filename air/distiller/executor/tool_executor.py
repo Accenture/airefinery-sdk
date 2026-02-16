@@ -1,10 +1,16 @@
 import asyncio
 import inspect
 import json
-from typing import Callable, Dict, Any, get_type_hints
 import logging
+from typing import Any, Callable, Dict, get_type_hints
 
-from air.distiller.executor.executor import Executor
+from air.distiller.executor.executor import Executor, is_async_callable
+from air.types.distiller.client import (
+    DistillerMessageRequestArgs,
+    DistillerMessageRequestType,
+    DistillerOutgoingMessage,
+)
+from air.types.distiller.executor.tool_use_config import ToolUseConfig
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -52,6 +58,8 @@ class ToolExecutor(Executor):
         # Initialize func as a dictionary of callables.
         # Perform setup based on function names specified in utility_config.
         self.func = {}
+        tool_use_config = ToolUseConfig(**utility_config)
+        self._wait_time = tool_use_config.wait_time
         try:
             custom_tools = utility_config.get("custom_tools", [])
             if not custom_tools:
@@ -169,18 +177,64 @@ class ToolExecutor(Executor):
                             f"original value='{current_value}'. Leaving as string."
                         )
 
+        loop = asyncio.get_running_loop()
         try:
-            # Call the base class __call__ method with the selected function
-            result = await super().__call__(
-                request_id=request_id, func=selected_func, *args, **kwargs
-            )
+            if is_async_callable(selected_func):
+                filtered_args, filtered_kwargs = self._filter_arguments(
+                    selected_func, args, kwargs
+                )
+                exec_task = selected_func(*filtered_args, **filtered_kwargs)
+            else:
+                exec_task = loop.run_in_executor(
+                    self.executor,
+                    self._run_function,
+                    selected_func,
+                    args,
+                    kwargs,
+                )
+            result = await asyncio.wait_for(exec_task, timeout=self._wait_time)
+            result = self.validate_result(result)
             logger.debug(
-                f"Successfully executed tool function '{executor}' for request_id '{request_id}'."
+                "Successfully executed tool function '%s' for request_id '%s'.",
+                executor,
+                request_id,
             )
-            return result
+        except asyncio.TimeoutError:
+            result = json.dumps(
+                {
+                    "error": {
+                        "type": "timeout",
+                        "message": "Tool execution timed out.",
+                        "timeout_sec": self._wait_time,
+                        "request_id": request_id,
+                    }
+                }
+            )
+            logger.info(
+                "Tool function '%s' timed out for request_id '%s'.",
+                executor,
+                request_id,
+            )
         except Exception as e:
             logger.exception(
-                f"Error executing tool function '{executor}' for request_id '{request_id}'."
+                "Error executing tool function '%s' for request_id '%s'.",
+                executor,
+                request_id,
             )
-            # Re-raise the exception to allow upstream handling
-            raise
+            raise RuntimeError(f"Exception in tool function execution: {e}") from e
+
+        res_content = (
+            str(result) if (result is not None and self.return_string) else result
+        )
+        request_args = DistillerMessageRequestArgs(content=res_content)
+        request = DistillerOutgoingMessage(
+            account=self.account,
+            project=self.project,
+            uuid=self.uuid,
+            role=self.role,
+            request_args=request_args,
+            request_type=DistillerMessageRequestType.EXECUTOR,
+            request_id=request_id,
+        )
+        await self.send_queue.put(request)
+        return result

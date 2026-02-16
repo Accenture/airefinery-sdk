@@ -21,6 +21,7 @@ from air.distiller.exceptions import (
     ProjectCreationError,
     ProjectDownloadError,
     UserAlreadyConnectedError,
+    WebSocketErrorMessageReceived,
     WebSocketReceiveError,
     WebSocketSendError,
 )
@@ -259,7 +260,7 @@ class AsyncDistillerClient:
             json_config = cast(dict, OmegaConf.to_container(yaml_config, resolve=True))
 
         if not json_config:
-            raise Exception("Either json_config or config_path must be provided.")
+            raise ValueError("Either json_config or config_path must be provided.")
 
         # Prepare the payload for the request
         payload = {
@@ -464,7 +465,18 @@ class AsyncDistillerClient:
                     print(f"Receive non json object {message}")
                     logger.warning(f"Skipping non-JSON message: {message}")
                     continue
+                if msg.get("type", None) == "error":
+                    error_message = ""
 
+                    # Try reading the error message from error_detail
+                    error_detail = msg.get("error_detail")
+                    if isinstance(error_detail, dict):
+                        error_message = error_detail.get("message", "")
+
+                    # Fallback to "error"
+                    if not error_message:
+                        error_message = msg.get("error", "")
+                    raise WebSocketErrorMessageReceived(error_message)
                 if msg.get("type", None) == "PING":
                     await self.send(DistillerPongMessage())
                     self._last_ping_received = asyncio.get_event_loop().time()
@@ -481,6 +493,11 @@ class AsyncDistillerClient:
 
         except asyncio.CancelledError:
             pass
+        except WebSocketErrorMessageReceived as e:
+            self._connection_fail_exception = e
+
+            if self.receive_queue:
+                await self.receive_queue.put(e)
 
         except websockets.exceptions.ConnectionClosedOK:
             if self.receive_queue:

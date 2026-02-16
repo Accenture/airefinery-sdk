@@ -9,17 +9,19 @@ This module includes:
 All responses are validated using Pydantic models.
 """
 
+import base64
 import io
+import json
 import logging
 from functools import cached_property
-from typing import Any, AsyncGenerator
+from typing import Any, AsyncGenerator, Union
 
 import aiohttp
 import requests
 
 from air import BASE_URL, __version__
 from air.auth.token_provider import TokenProvider
-from air.types.audio import TTSResponse
+from air.types.audio import TTSResponse, TTSWordBoundaryEvent
 from air.utils import get_base_headers, get_base_headers_async
 
 logger = logging.getLogger(__name__)
@@ -107,7 +109,8 @@ class StreamingResponse:
         if self._chunks is None:
             buffer = io.BytesIO()
             async for chunk in self._stream_generator:
-                buffer.write(chunk)
+                if isinstance(chunk, bytes):
+                    buffer.write(chunk)
             self._chunks = buffer.getvalue()
         return self._chunks
 
@@ -120,7 +123,8 @@ class StreamingResponse:
         if self._chunks is None:
             buffer = io.BytesIO()
             for chunk in self._stream_generator():
-                buffer.write(chunk)
+                if isinstance(chunk, bytes):
+                    buffer.write(chunk)
             self._chunks = buffer.getvalue()
         return self._chunks
 
@@ -219,7 +223,7 @@ class AsyncTTSClient:  # pylint: disable=too-few-public-methods
         if timeout is not None:
             payload["timeout"] = timeout
         if extra_body:
-            payload.update(extra_body)
+            payload["extra_body"] = extra_body
 
         # Start with built-in auth/JSON headers
         headers = await get_base_headers_async(
@@ -230,6 +234,11 @@ class AsyncTTSClient:  # pylint: disable=too-few-public-methods
         # Merge in extra_headers (overwrites if collision)
         if extra_headers:
             headers.update(extra_headers)
+
+        # Check if word boundaries are enabled
+        enable_word_boundary = (
+            extra_body.get("enable_word_boundary", False) if extra_body else False
+        )
 
         # Batch mode - return complete audio
         try:
@@ -242,8 +251,30 @@ class AsyncTTSClient:  # pylint: disable=too-few-public-methods
                         total=timeout if timeout is not None else 60
                     ),
                 ) as resp:
-                    resp.raise_for_status()
-                    return TTSResponse(await resp.read())
+                    if resp.status >= 400:
+                        error_body = await resp.text()
+                        raise aiohttp.ClientResponseError(
+                            resp.request_info,
+                            resp.history,
+                            status=resp.status,
+                            message=error_body,
+                        )
+
+                    if enable_word_boundary:
+                        try:
+                            data = await resp.json()
+                            audio_bytes = base64.b64decode(data["audio"])
+                            events = [
+                                TTSWordBoundaryEvent(**e)
+                                for e in data["word_boundaries"]
+                            ]
+                            return TTSResponse(audio_bytes, word_boundaries=events)
+                        except (KeyError, ValueError, json.JSONDecodeError) as e:
+                            logger.error(f"Failed to parse word boundary response: {e}")
+                            raise
+
+                    else:
+                        return TTSResponse(await resp.read())
         except aiohttp.ClientError as e:
             logger.error(f"Network error: {e}")
             raise
@@ -324,10 +355,10 @@ class AsyncTTSClientWithStreamingResponse:
         if timeout is not None:
             payload["timeout"] = timeout
         if extra_body:
-            payload.update(extra_body)
+            payload["extra_body"] = extra_body
 
         # Start with built-in auth/JSON headers
-        headers = get_base_headers(self._client.api_key)
+        headers = await get_base_headers_async(self._client.api_key)
 
         # Merge in default_headers
         headers.update(self._client.default_headers)
@@ -335,8 +366,15 @@ class AsyncTTSClientWithStreamingResponse:
         if extra_headers:
             headers.update(extra_headers)
 
+        # Check if word boundaries are enabled
+        enable_word_boundary = (
+            extra_body.get("enable_word_boundary", False) if extra_body else False
+        )
+
         # Streaming mode - return async generator
-        async def _stream_generator() -> AsyncGenerator[bytes, None]:
+        async def _stream_generator() -> (
+            AsyncGenerator[bytes | TTSWordBoundaryEvent, None]
+        ):
             try:
                 async with aiohttp.ClientSession() as session:
                     async with session.post(
@@ -347,11 +385,49 @@ class AsyncTTSClientWithStreamingResponse:
                             total=timeout if timeout is not None else 60
                         ),
                     ) as resp:
-                        resp.raise_for_status()
+                        if resp.status >= 400:
+                            error_body = await resp.text()
+                            raise aiohttp.ClientResponseError(
+                                resp.request_info,
+                                resp.history,
+                                status=resp.status,
+                                message=error_body,
+                            )
 
-                        async for chunk in resp.content.iter_chunked(chunk_size):
-                            if chunk:  # Filter out keep-alive chunks
-                                yield chunk
+                        if enable_word_boundary:
+
+                            # NDJSON format: read line by line using readline()
+                            while True:
+                                line = await resp.content.readline()
+                                if not line:
+                                    break
+                                line = line.strip()
+                                if not line:
+                                    continue
+                                try:
+                                    data = json.loads(line.decode("utf-8"))
+                                    if data["type"] == "audio":
+                                        yield base64.b64decode(data["data"])
+                                    elif data["type"] == "word_boundary":
+                                        yield TTSWordBoundaryEvent(
+                                            **{
+                                                k: v
+                                                for k, v in data.items()
+                                                if k != "type"
+                                            }
+                                        )
+                                except (json.JSONDecodeError, UnicodeDecodeError) as e:
+                                    logger.error(
+                                        f"Failed to parse line: {line}, error: {e}"
+                                    )
+                                    raise
+                        else:
+
+                            # Pure audio stream
+                            async for chunk in resp.content.iter_chunked(chunk_size):
+                                if chunk:
+                                    yield chunk
+
             except aiohttp.ClientError as e:
                 logger.error(f"Network error: {e}")
                 raise
@@ -425,7 +501,7 @@ class TTSClient:  # pylint: disable=too-few-public-methods
         if timeout is not None:
             payload["timeout"] = timeout
         if extra_body:
-            payload.update(extra_body)
+            payload["extra_body"] = extra_body
 
         # Start with built-in auth/JSON headers
         headers = get_base_headers(
@@ -438,6 +514,10 @@ class TTSClient:  # pylint: disable=too-few-public-methods
         if extra_headers:
             headers.update(extra_headers)
 
+        # Check if word boundaries are enabled
+        enable_word_boundary = (
+            extra_body.get("enable_word_boundary", False) if extra_body else False
+        )
         try:
             resp = requests.post(
                 endpoint,
@@ -445,8 +525,22 @@ class TTSClient:  # pylint: disable=too-few-public-methods
                 headers=headers,
                 timeout=timeout if timeout is not None else 60,
             )
-            resp.raise_for_status()
-            return TTSResponse(resp.content)
+            if resp.status_code >= 400:
+                raise requests.HTTPError(resp.text, response=resp)
+
+            if enable_word_boundary:
+                try:
+                    data = resp.json()
+                    audio_bytes = base64.b64decode(data["audio"])
+                    events = [
+                        TTSWordBoundaryEvent(**e) for e in data["word_boundaries"]
+                    ]
+                    return TTSResponse(audio_bytes, word_boundaries=events)
+                except (KeyError, ValueError, json.JSONDecodeError) as e:
+                    logger.error(f"Failed to parse word boundary response: {e}")
+                    raise
+            else:
+                return TTSResponse(resp.content)
         except requests.RequestException as e:
             logger.error(f"Network error: {e}")
             raise
@@ -527,7 +621,7 @@ class TTSClientWithStreamingResponse:
         if timeout is not None:
             payload["timeout"] = timeout
         if extra_body:
-            payload.update(extra_body)
+            payload["extra_body"] = extra_body
 
         # Start with built-in auth/JSON headers
         headers = get_base_headers(self._client.api_key)
@@ -538,10 +632,14 @@ class TTSClientWithStreamingResponse:
         if extra_headers:
             headers.update(extra_headers)
 
+        # Check if word boundaries are enabled
+        enable_word_boundary = (
+            extra_body.get("enable_word_boundary", False) if extra_body else False
+        )
+
         # Streaming mode - return iterator
         def _stream_iterator():
             """Generate audio chunks synchronously."""
-
             try:
                 resp = requests.post(
                     endpoint,
@@ -550,11 +648,36 @@ class TTSClientWithStreamingResponse:
                     timeout=timeout if timeout is not None else 60,
                     stream=True,
                 )
-                resp.raise_for_status()
+                if resp.status_code >= 400:
+                    raise requests.HTTPError(resp.text, response=resp)
 
-                for chunk in resp.iter_content(chunk_size=chunk_size):
-                    if chunk:
-                        yield chunk
+                if enable_word_boundary:
+
+                    # NDJSON format: parse each line
+                    for line in resp.iter_lines():
+                        if not line:
+                            continue
+                        try:
+                            data = json.loads(line.decode("utf-8"))
+                            if data["type"] == "audio":
+                                yield base64.b64decode(data["data"])
+                            elif data["type"] == "word_boundary":
+                                yield TTSWordBoundaryEvent(
+                                    **{k: v for k, v in data.items() if k != "type"}
+                                )
+                        except (
+                            json.JSONDecodeError,
+                            UnicodeDecodeError,
+                            KeyError,
+                            ValueError,
+                        ) as e:
+                            logger.error(f"Failed to parse line: {line}, error: {e}")
+                            raise
+                else:
+                    # Pure audio stream
+                    for chunk in resp.iter_content(chunk_size=chunk_size):
+                        if chunk:
+                            yield chunk
             except requests.RequestException as e:
                 logger.error(f"Network error: {e}")
                 raise

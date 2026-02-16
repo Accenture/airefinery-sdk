@@ -38,6 +38,31 @@ from pydantic import TypeAdapter, Field
 from air.types.base import CustomBaseModel
 
 
+class TTSWordBoundaryEvent(CustomBaseModel):
+    """Word boundary event from TTS streaming.
+
+    Provides timing metadata for words, punctuation, and sentences
+    during speech synthesis.
+
+    Attributes:
+        type: Event type identifier, always "word_boundary".
+        text: The word or punctuation text.
+        audio_offset_ms: Time offset in milliseconds from audio start.
+        duration_ms: Duration of the word in milliseconds.
+        text_offset: Character offset in the original input text.
+        word_length: Length of the word in characters.
+        boundary_type: Type of boundary. Supported values: word, punctuation, sentence.
+    """
+
+    type: Literal["word_boundary"] = "word_boundary"
+    text: str
+    audio_offset_ms: float
+    duration_ms: float
+    text_offset: int
+    word_length: int
+    boundary_type: str
+
+
 class TTSResponse:
     """
     Response wrapper for TTS audio data.
@@ -49,18 +74,26 @@ class TTSResponse:
     Attributes:
         content: Raw audio bytes from TTS synthesis.
         encoding: Text encoding used for the content.
+        word_boundaries: List of word boundary events (default: None).
     """
 
-    def __init__(self, content: bytes, encoding: str = "utf-8"):
+    def __init__(
+        self,
+        content: bytes,
+        encoding: str = "utf-8",
+        word_boundaries: list[TTSWordBoundaryEvent] | None = None,
+    ):
         """
         Initialize TTSResponse with audio data.
 
         Args:
             content: Raw audio bytes from TTS synthesis
             encoding: Text encoding (default: utf-8)
+            word_boundaries: List of word boundary events (default: None)
         """
         self._content = content
         self._encoding = encoding
+        self.word_boundaries = word_boundaries
 
     @property
     def content(self) -> bytes:
