@@ -8,13 +8,14 @@ this executor prompts the user for input and returns the response.
 
 import asyncio
 import logging
+import sys
 from typing import Any, Callable, Dict, Union
 
 from air.distiller.executor.executor import Executor
 from air.types.distiller.client import (
+    DistillerMessageRequestArgs,
     DistillerMessageRequestType,
     DistillerOutgoingMessage,
-    DistillerMessageRequestArgs,
 )
 from air.types.distiller.executor.human_config import HumanAgentConfig
 
@@ -23,8 +24,8 @@ logger = logging.getLogger(__name__)
 
 async def input_method_from_terminal(query: str) -> str:
     """
-    Collects string input from the terminal asynchronously.
-
+    Collects string input from the terminal asynchronously (cancellable on timeout)
+    using the event loop's stdin reader (Unix/macOS/Linux).
     Args:
         query (str): The prompt to display to the user.
 
@@ -32,8 +33,22 @@ async def input_method_from_terminal(query: str) -> str:
         str: The collected user's input from terminal as a string.
     """
     loop = asyncio.get_running_loop()
-    content = await loop.run_in_executor(None, input, query)
-    return content
+
+    # print the query to user
+    print(query, end="", flush=True)
+
+    fut = loop.create_future()
+
+    def on_ready():
+        if fut.done():
+            return
+        fut.set_result(sys.stdin.readline().rstrip("\n"))
+
+    loop.add_reader(sys.stdin, on_ready)
+    try:
+        return await fut
+    finally:
+        loop.remove_reader(sys.stdin)
 
 
 class HumanExecutor(Executor):
@@ -76,11 +91,11 @@ class HumanExecutor(Executor):
         """
 
         # Casting utility config to class-specific pydantic BaseModel
-        human_agent_config = HumanAgentConfig(**utility_config)
+        self.human_agent_config = HumanAgentConfig(**utility_config)
 
-        if human_agent_config.user_input_method == "Terminal":
+        if self.human_agent_config.user_input_method == "Terminal":
             self.input_func = input_method_from_terminal
-        elif human_agent_config.user_input_method == "Custom":
+        elif self.human_agent_config.user_input_method == "Custom":
             if func == {}:
                 raise ValueError(
                     "In 'Custom' config, an input function must be defined in the human executor."
@@ -93,7 +108,7 @@ class HumanExecutor(Executor):
                 self.input_func = func
         else:
             raise ValueError(
-                f"{human_agent_config.user_input_method} mode is not supported."
+                f"{self.human_agent_config.user_input_method} mode is not supported."
             )
 
         super().__init__(
@@ -124,8 +139,15 @@ class HumanExecutor(Executor):
         prompt_message = f"{query}\n> "
 
         logger.info("Prompting user: '%s'", prompt_message.strip())
-        user_input = await self.input_func(prompt_message)
-        logger.info("User entered: '%s'", user_input)
+        try:
+            user_input = await asyncio.wait_for(
+                self.input_func(prompt_message),
+                timeout=self.human_agent_config.wait_time,
+            )
+            logger.info("User entered: '%s'", user_input)
+        except asyncio.TimeoutError:
+            user_input = None
+            logger.info("Timeout")
 
         response_request_args = DistillerMessageRequestArgs(content=user_input)
         response_payload = DistillerOutgoingMessage(

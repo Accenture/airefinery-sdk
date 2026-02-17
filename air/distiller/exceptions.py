@@ -91,6 +91,12 @@ class WebSocketReceiveError(WebSocketError):
     DEFAULT_CODE = "distiller.client.websocket_receive_error"
 
 
+class WebSocketErrorMessageReceived(WebSocketError):
+    """Raised when a message of type=error received from server."""
+
+    DEFAULT_CODE = "distiller.client.websocket_error_received"
+
+
 class ConnectionTimeoutError(ConnectionError):
     """Raised when connection times out (e.g., ping monitor)."""
 
