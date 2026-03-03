@@ -2,7 +2,7 @@
 
 from setuptools import find_packages, setup
 
-VERSION = "1.26.0"
+VERSION = "1.27.0"
 
 
 setup(
@@ -35,8 +35,8 @@ setup(
         **(
             extras := {
                 "tah-vertex-ai": [
-                    "google-genai==1.20.0",
-                    "google-cloud-aiplatform[agent_engines]==1.101.0",
+                    "google-genai>=1.59.0",
+                    "google-cloud-aiplatform[agent_engines]>=1.138.0",
                 ],
                 "tah-azure-ai": [
                     "azure-ai-projects==1.0.0b8",
@@ -54,7 +54,7 @@ setup(
                 ],
                 "tah-a2a": [
                     "a2a-sdk==0.2.8",
-                    "langchain-core>=0.3.68",
+                    "langchain-core>=1.2.14",
                     "langchain-openai>=0.3.27",
                     "langgraph>=0.5.2",
                 ],

@@ -150,8 +150,6 @@ class SnowflakeAgentConfig(BaseModel):
         snowflake_model = self.snowflake_model
         snowflake_tool_choice = self.snowflake_tool_choice
         valid_models = [
-            "llama3.1-70b",
-            "llama3.3-70b",
             "mistral-large2",
             "claude-3-5-sonnet",
         ]

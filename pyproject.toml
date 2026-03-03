@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "airefinery-sdk"
-version = "1.26.0"
+version = "1.27.0"
 description = "AI Refinery™ by Accenture SDK for developing and executing AI multi-agent solutions."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -34,8 +34,8 @@ dependencies = [
 [project.optional-dependencies]
 
 tah-vertex-ai = [
-  "google-genai==1.20.0",
-  "google-cloud-aiplatform[agent_engines]==1.101.0",
+  "google-genai>=1.59.0",
+  "google-cloud-aiplatform[agent_engines]>=1.138.0",
 ]
 
 tah-azure-ai = [
@@ -60,7 +60,7 @@ tah-aws-ai = [
 
 tah-a2a = [
   "a2a-sdk==0.2.8",
-  "langchain-core>=0.3.68",
+  "langchain-core>=1.2.14",
   "langchain-openai>=0.3.27",
   "langgraph>=0.5.2",
 ]
@@ -79,8 +79,8 @@ realtime = [
 ]
 
 full = [
-  "google-genai==1.20.0",
-  "google-cloud-aiplatform[agent_engines]==1.101.0",
+  "google-genai>=1.59.0",
+  "google-cloud-aiplatform[agent_engines]>=1.138.0",
   "azure-ai-projects==1.0.0b8",
   "azure-identity==1.26.0b1",
   "writer-sdk>=2.2.0",
@@ -89,7 +89,7 @@ full = [
   "matplotlib>=3.10.1",
   "boto3>=1.38.36",
   "a2a-sdk==0.2.8",
-  "langchain-core>=0.3.68",
+  "langchain-core>=1.2.14",
   "langchain-openai>=0.3.27",
   "langgraph>=0.5.2",
   "databricks-sdk>=0.57.0",
