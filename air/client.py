@@ -21,6 +21,7 @@ from air.images import (
 from air.knowledge import AsyncKnowledgeClient, KnowledgeClient
 from air.models import AsyncModelsClient, ModelsClient
 from air.moderations import AsyncModerationsClient, ModerationsClient
+from air.observability import LogsClient, MetricsClient, TracesClient
 
 
 class AsyncAIRefinery:  # pylint: disable=too-many-instance-attributes,too-few-public-methods
@@ -173,6 +174,20 @@ class AsyncAIRefinery:  # pylint: disable=too-many-instance-attributes,too-few-p
             default_headers=self.default_headers,
         )
 
+        # Provides async observability sub-clients
+        self.traces = TracesClient(
+            base_url=self.base_url,
+            api_key=self.api_key,
+        )
+        self.logs = LogsClient(
+            base_url=self.base_url,
+            api_key=self.api_key,
+        )
+        self.metrics = MetricsClient(
+            base_url=self.base_url,
+            api_key=self.api_key,
+        )
+
 
 class AIRefinery:  # pylint: disable=too-many-instance-attributes,too-few-public-methods
     """
@@ -303,6 +318,20 @@ class AIRefinery:  # pylint: disable=too-many-instance-attributes,too-few-public
             base_url=self.base_url,
             api_key=self.api_key,
             default_headers=self.default_headers,
+        )
+
+        # Provides observability sub-clients (queries are async)
+        self.traces = TracesClient(
+            base_url=self.base_url,
+            api_key=self.api_key,
+        )
+        self.logs = LogsClient(
+            base_url=self.base_url,
+            api_key=self.api_key,
+        )
+        self.metrics = MetricsClient(
+            base_url=self.base_url,
+            api_key=self.api_key,
         )
 
     @property

@@ -18,6 +18,7 @@ from air.types.distiller.realtime import (
     InputAudioClearEvent,
     InputAudioCommitEvent,
     InputTextEvent,
+    ResponseCancelEvent,
     ResponseCreatedEvent,
     ResponseDoneEvent,
     ServerResponseEvent,
@@ -26,7 +27,6 @@ from air.types.distiller.realtime import (
 )
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 
 class AsyncRealtimeDistillerClient(AsyncDistillerClient):
@@ -243,6 +243,26 @@ class AsyncRealtimeDistillerClient(AsyncDistillerClient):
         else:
             logger.error("Send queue not available for session update")
 
+    async def cancel_response(self) -> None:
+        """Request cancellation of the current in-progress response.
+
+        Sends a ``ResponseCancelEvent`` to the server, which will stop TTS
+        synthesis and close the current response with ``ResponseAudioDone``
+        and ``ResponseDone`` events.
+
+        Safe to call when no response is active (no-op).
+        """
+        if not await self.get_response_created():
+            logger.debug("cancel_response called but no response is active.")
+            return
+
+        payload = ResponseCancelEvent()
+        if self.send_queue:
+            await self.send_queue.put(payload)
+            logger.info("Sent response.cancel to server.")
+        else:
+            logger.error("Send queue not available for response cancel")
+
     async def connect(
         self,
         project: str,
@@ -299,6 +319,26 @@ class AsyncRealtimeDistillerClient(AsyncDistillerClient):
             logger.error(f"Error during session cleanup: {e}")
             raise
 
+    async def _flush_receive_queue(self) -> None:
+        """Discard stale messages from the receive queue between queries.
+
+        After a cancelled response the server may send a trailing
+        ``response.done`` that arrives after the previous call to
+        ``get_responses()`` has already returned.  Flushing prevents
+        the next query from picking up that stale event and exiting
+        immediately.
+        """
+        if self.receive_queue:
+            drained = 0
+            while not self.receive_queue.empty():
+                try:
+                    self.receive_queue.get_nowait()
+                    drained += 1
+                except asyncio.QueueEmpty:
+                    break
+            if drained:
+                logger.debug("Flushed %d stale message(s) from receive queue.", drained)
+
     # use for get audio output
     async def get_responses(
         self, **kwargs: Any
@@ -351,18 +391,25 @@ class AsyncRealtimeDistillerClient(AsyncDistillerClient):
             logger.error(f"Voice response error: {e}")
             raise
 
-    async def listen_and_respond(
+    async def listen_and_respond(  # pragma: no cover  # pylint: disable=too-many-branches,too-many-statements
         self,
         sample_rate: int = 16000,
+        cancel_event: asyncio.Event | None = None,
     ) -> None:
         """
         Listen to microphone input and play audio responses.
 
         Args:
             sample_rate: Audio sample rate in Hz (must match YAML speech_config)
+            cancel_event: Optional asyncio.Event; when set, stops playback and
+                sends cancellation to server. The caller is responsible for
+                setting this event (e.g., via keyboard input or a UI action).
         """
 
+        await self._flush_receive_queue()
+
         mic_task = None
+        cancel_monitor = None
         audio_queue: asyncio.Queue = asyncio.Queue()
         tts_received = asyncio.Event()
         tts_received.clear()
@@ -370,6 +417,21 @@ class AsyncRealtimeDistillerClient(AsyncDistillerClient):
         tts_complete.clear()
 
         try:
+            if cancel_event:
+
+                async def _watch_cancel() -> None:
+                    while True:
+                        await cancel_event.wait()
+                        try:
+                            await self.cancel_response()
+                        except Exception as exc:
+                            logger.error("Failed to send cancel to server: %s", exc)
+                        # Wait for event to be cleared (next agent boundary)
+                        # before re-arming for the next agent.
+                        while cancel_event.is_set():
+                            await asyncio.sleep(0.05)
+
+                cancel_monitor = asyncio.create_task(_watch_cancel())
 
             # Start microphone streaming
             mic_task = asyncio.create_task(
@@ -383,6 +445,7 @@ class AsyncRealtimeDistillerClient(AsyncDistillerClient):
                     tts_received=tts_received,
                     tts_complete=tts_complete,
                     sample_rate=sample_rate,
+                    cancel_event=cancel_event,
                 )
             )
 
@@ -415,26 +478,40 @@ class AsyncRealtimeDistillerClient(AsyncDistillerClient):
                     continue
 
                 if response.get("type") == "response.text.delta":
+                    # New agent starting — clear cancel so stream_audio_output
+                    # resumes and the keyboard listener re-arms for this agent.
+                    if cancel_event and cancel_event.is_set():
+                        cancel_event.clear()
                     logger.info(
                         f"%%% [Delta] AGENT {response.get('role', 'ASSISTANT')} %%%"
                     )
                     logger.info(response.get("content"))
                     continue
 
-            # Wait for playback completion
-            while not (tts_received.is_set() and audio_queue.qsize() == 0):
-                await asyncio.sleep(0.01)
-
-            speaker_task.cancel()
+            # Stop playback — cancel or normal completion
+            if cancel_event and cancel_event.is_set():
+                while not audio_queue.empty():
+                    try:
+                        audio_queue.get_nowait()
+                    except asyncio.QueueEmpty:
+                        break
+                speaker_task.cancel()
+            else:
+                while not (tts_received.is_set() and audio_queue.qsize() == 0):
+                    await asyncio.sleep(0.01)
+                speaker_task.cancel()
 
         finally:
             if mic_task and not mic_task.done():
                 mic_task.cancel()
+            if cancel_monitor and not cancel_monitor.done():
+                cancel_monitor.cancel()
 
-    async def send_text_and_respond(
+    async def send_text_and_respond(  # pragma: no cover  # pylint: disable=too-many-branches,too-many-statements
         self,
         text: str,
         sample_rate: int = 16000,
+        cancel_event: asyncio.Event | None = None,
     ) -> None:
         """
         Send text query and play audio responses.
@@ -442,6 +519,9 @@ class AsyncRealtimeDistillerClient(AsyncDistillerClient):
         Args:
             text: The text query to send
             sample_rate: Audio sample rate in Hz (must match YAML speech_config)
+            cancel_event: Optional asyncio.Event; when set, stops playback and
+                sends cancellation to server. The caller is responsible for
+                setting this event (e.g., via keyboard input or a UI action).
 
         Raises:
             ValueError: If text is empty
@@ -449,6 +529,9 @@ class AsyncRealtimeDistillerClient(AsyncDistillerClient):
         if not text.strip():
             raise ValueError("Text query cannot be empty")
 
+        await self._flush_receive_queue()
+
+        cancel_monitor = None
         audio_queue: asyncio.Queue = asyncio.Queue()
         tts_received = asyncio.Event()
         tts_received.clear()
@@ -456,6 +539,22 @@ class AsyncRealtimeDistillerClient(AsyncDistillerClient):
         tts_complete.clear()
 
         try:
+            if cancel_event:
+
+                async def _watch_cancel() -> None:
+                    while True:
+                        await cancel_event.wait()
+                        try:
+                            await self.cancel_response()
+                        except Exception as exc:
+                            logger.error("Failed to send cancel to server: %s", exc)
+                        # Wait for event to be cleared (next agent boundary)
+                        # before re-arming for the next agent.
+                        while cancel_event.is_set():
+                            await asyncio.sleep(0.05)
+
+                cancel_monitor = asyncio.create_task(_watch_cancel())
+
             # Send text query
             await self.send_text_query(text)
 
@@ -466,12 +565,16 @@ class AsyncRealtimeDistillerClient(AsyncDistillerClient):
                     tts_received=tts_received,
                     tts_complete=tts_complete,
                     sample_rate=sample_rate,
+                    cancel_event=cancel_event,
                 )
             )
 
             # Process responses
             async for response in self.get_responses():
                 if response.get("type") == "PING":
+                    continue
+
+                if response.get("type") == "response.created":
                     continue
 
                 if response.get("type") == "response.audio.delta":
@@ -491,18 +594,32 @@ class AsyncRealtimeDistillerClient(AsyncDistillerClient):
                     continue
 
                 if response.get("type") == "response.text.delta":
+                    # New agent starting — clear cancel so stream_audio_output
+                    # resumes and the keyboard listener re-arms for this agent.
+                    if cancel_event and cancel_event.is_set():
+                        cancel_event.clear()
                     logger.info(
                         f"%%% [Delta] AGENT {response.get('role', 'ASSISTANT')} %%%"
                     )
                     logger.info(response.get("content"))
                     continue
 
-            # Wait for playback completion
-            while not (tts_received.is_set() and audio_queue.qsize() == 0):
-                await asyncio.sleep(0.01)
-
-            speaker_task.cancel()
+            # Stop playback — cancel or normal completion
+            if cancel_event and cancel_event.is_set():
+                while not audio_queue.empty():
+                    try:
+                        audio_queue.get_nowait()
+                    except asyncio.QueueEmpty:
+                        break
+                speaker_task.cancel()
+            else:
+                while not (tts_received.is_set() and audio_queue.qsize() == 0):
+                    await asyncio.sleep(0.01)
+                speaker_task.cancel()
 
         except Exception as e:
             logger.error(f"Error in text query: {e}")
             raise
+        finally:
+            if cancel_monitor and not cancel_monitor.done():
+                cancel_monitor.cancel()

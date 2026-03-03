@@ -25,7 +25,7 @@ Example usage:
         default_headers={"X-Client-Version": "1.2.3"},
     )
     resp = sync_client.completions.create(
-        model="meta-llama/Llama-4-Maverick-17B-128E-Instruct",
+        model="openai/gpt-oss-120b",
         messages=[...],
         timeout=10.0,
         extra_headers={"X-Request-Id": "abc-123"},
@@ -40,7 +40,7 @@ Example usage:
         default_headers={"X-Client-Version": "1.2.3"},
     )
     async for chunk in await async_client.completions.create(
-        model="meta-llama/Llama-4-Maverick-17B-128E-Instruct",
+        model="openai/gpt-oss-120b",
         messages=[...],
         timeout=60.0,
         extra_headers={"X-Request-Id": "xyz-789"},
@@ -576,7 +576,7 @@ class AsyncChatCompletionsClient:  # pylint: disable=too-few-public-methods
         **kwargs,
     ) -> AsyncGenerator[ChatCompletionChunk, None]: ...
 
-    async def create(
+    async def create(  # pyright: ignore[reportInconsistentOverload]
         self,
         *,
         model: str,
