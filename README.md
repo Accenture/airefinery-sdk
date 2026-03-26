@@ -60,7 +60,7 @@ The RAI module is a [**Responsible AI**](https://sdk.airefinery.accenture.com/tu
 
 ### 4. Process your documents to extract the knowledge for your project
 
-This exmaple introduces [**The Knowledge Extraction API**](https://sdk.airefinery.accenture.com/tutorial/knowledge_extraction/knowledge_extraction/) that allows you to send a document and then extract the knowledge/information contained within the documents. This example demonstrates:
+This example introduces [**The Knowledge Extraction API**](https://sdk.airefinery.accenture.com/tutorial/knowledge_extraction/knowledge_extraction/) that allows you to send a document and then extract the knowledge/information contained within the documents. This example demonstrates:
 
 - How to perform knowledge extraction tasks from your PPTX, PDF, DOCX, PPT, and DOC files. 
 - The [DocumentProcessingClient](https://sdk.airefinery.accenture.com/api-reference/knowledge_api/knowledge-extraction-index/).
@@ -122,7 +122,7 @@ utility_agents:
 
 [`AsyncAIRefinery`](https://sdk.airefinery.accenture.com/api-reference/distiller-index/) API creates a distiller client. This client will interface with the AI Refinery™ service to run your project. Below is a function that sets up the distiller client. Here's what it does:  
 
-- Authenticate using `AIREFINERY_API_KEY` from your os envenvironment variables.
+- Authenticate using `AIREFINERY_API_KEY` from your os environment variables.
 - Defines the `simple_agent` function that will cover the scope of the `Assistant Agent` using AI Refinery™ Inference-as-a-service.  
 - Instantiates a `AsyncAIRefinery`.  
 - Creates a project named `my_first_project` using the configuration specified in the `example.yaml` file.
