@@ -691,7 +691,7 @@ class TranscriptionsWithStreamingResponse:  # pylint: disable=too-few-public-met
 
         def _event_iter(
             resp: requests.Response,
-        ) -> Iterator[TranscriptionStreamEvent]:
+        ) -> Iterator[str]:
             for raw in resp.iter_lines():
                 line = raw.decode().strip()
                 yield line

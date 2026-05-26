@@ -22,7 +22,11 @@ def is_unauthorized_error(exception):
     """
     Method to verify if exception is a 401 HTTP error
     """
-    return isinstance(exception, HTTPError) and exception.response.status_code == 401
+    return (
+        isinstance(exception, HTTPError)
+        and exception.response is not None
+        and exception.response.status_code == 401
+    )
 
 
 class Embedding:
