@@ -26,7 +26,7 @@ from importlib import metadata as _metadata
 try:
     __version__: str = _metadata.version(__package__ or "airefinery-sdk")
 except _metadata.PackageNotFoundError:  # pragma: no cover
-    __version__ = "1.31.5"
+    __version__ = "1.31.6"
 
 # Decide the default base url
 # - Default: api.airefinery.accenture.com (production K8s cluster)
