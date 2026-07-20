@@ -151,7 +151,12 @@ class AsyncDistillerClient:
     ping_interval = 10
 
     def __init__(
-        self, api_key: str | TokenProvider, *, base_url: str = BASE_URL, **kwargs
+        self,
+        api_key: str | TokenProvider,
+        *,
+        base_url: str = BASE_URL,
+        default_headers: dict[str, str] | None = None,
+        **kwargs,
     ) -> None:
         """
         Initialize the AsyncDistillerClient with authentication details.
@@ -165,8 +170,13 @@ class AsyncDistillerClient:
                   client calls the provider automatically before each request.
 
             base_url (str, optional): Base URL for the API. Defaults to "".
+            default_headers (dict[str, str] | None, optional): Headers merged into
+                every outbound request. Distiller-owned headers (e.g.
+                ``airefinery_account``) always take precedence.
         """
         super().__init__()
+
+        self.default_headers: dict[str, str] = default_headers or {}
 
         # Use the provided base URL or the default one
         self.base_url = base_url
@@ -273,6 +283,7 @@ class AsyncDistillerClient:
         headers = get_base_headers(
             self.api_key,
             extra_headers={
+                **self.default_headers,
                 "airefinery_account": str(self.account),
             },
         )
@@ -334,7 +345,10 @@ class AsyncDistillerClient:
 
         headers = get_base_headers(
             self.api_key,
-            extra_headers={"airefinery_account": str(self.account)},
+            extra_headers={
+                **self.default_headers,
+                "airefinery_account": str(self.account),
+            },
         )
 
         # Ensure this matches your FastAPI route
@@ -400,6 +414,7 @@ class AsyncDistillerClient:
         headers = get_base_headers(
             self.api_key,
             extra_headers={
+                **self.default_headers,
                 "airefinery_account": str(self.account),
             },
         )
@@ -718,6 +733,7 @@ class AsyncDistillerClient:
         headers = await get_base_headers_async(
             self.api_key,
             extra_headers={
+                **self.default_headers,
                 "airefinery_account": str(self.account),
             },
         )
