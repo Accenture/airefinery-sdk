@@ -2,7 +2,7 @@
 
 from setuptools import find_packages, setup
 
-VERSION = "1.32.0"
+VERSION = "1.32.1"
 
 
 setup(
@@ -19,7 +19,7 @@ setup(
         "setuptools>=75.2.0",
         "numpy>=1.26.0",
         "pandas>=2.2.3",
-        "mcp>=1.6.0",
+        "mcp>=1.9.0,<2.0.0",
         "aiofiles>=24.1.0",
         "filelock>=3.15.3",
         "tqdm>=4.67.0",
