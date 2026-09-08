@@ -27,6 +27,10 @@ class DistillerMessageRequestArgs(CustomBaseModel, extra="allow"):
     content: Optional[Union[str, List]] = Field(
         default=None, description="Optional content to be included in the query."
     )
+    memory_updates: Optional[Dict[str, Dict[str, Any]]] = Field(
+        default=None,
+        description="Optional memory updates to apply after executor response. Maps source name to variables_dict.",
+    )
 
 
 class DistillerOutgoingMessage(CustomBaseModel):

@@ -49,6 +49,15 @@ from air.utils import get_base_headers, get_base_headers_async
 ENDPOINT_EMBEDDINGS = "{base_url}/v1/embeddings"
 
 
+# MSB (Model SwitchBoard) embedding endpoints nest usage under extra_body.metrics.usage instead of the top level.
+def _normalize_embedding_response(raw: dict) -> dict:
+    if "usage" not in raw:
+        nested = raw.get("extra_body", {}).get("metrics", {}).get("usage", {})
+        if nested:
+            raw = {**raw, "usage": nested}
+    return raw
+
+
 class EmbeddingsClient:  # pylint: disable=too-few-public-methods
     """
     A synchronous client for the embedding create endpoint.
@@ -128,7 +137,9 @@ class EmbeddingsClient:  # pylint: disable=too-few-public-methods
             endpoint, json=payload, headers=headers, timeout=effective_timeout
         )
         response.raise_for_status()
-        return CreateEmbeddingResponse.model_validate(response.json())
+        return CreateEmbeddingResponse.model_validate(
+            _normalize_embedding_response(response.json())
+        )
 
 
 class AsyncEmbeddingsClient:  # pylint: disable=too-few-public-methods
@@ -209,4 +220,6 @@ class AsyncEmbeddingsClient:  # pylint: disable=too-few-public-methods
         async with aiohttp.ClientSession(timeout=client_timeout) as session:
             async with session.post(endpoint, json=payload, headers=headers) as resp:
                 resp.raise_for_status()
-                return CreateEmbeddingResponse.model_validate(await resp.json())
+                return CreateEmbeddingResponse.model_validate(
+                    _normalize_embedding_response(await resp.json())
+                )
