@@ -3,7 +3,7 @@ import concurrent.futures
 import functools
 import inspect
 import logging
-from typing import Callable, Dict, Optional, Union
+from typing import Any, Callable, Dict, Optional, Union
 
 from air import __version__
 from air.types.distiller.client import (
@@ -13,6 +13,35 @@ from air.types.distiller.client import (
 )
 
 logger = logging.getLogger(__name__)
+
+# The single kwarg whose writes are tracked and synced back to the server.
+# Only the kwarg literally named this is wrapped; every other kwarg (query,
+# chat_history, image, and any future dict the server sends) is left untouched.
+TRACKED_MEMORY_SOURCE = "env_variable"
+
+
+class TrackedDict(dict):
+    """A dict that records writes so the executor can sync them back to the server."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Use object.__setattr__-free plain attribute; dict subclass allows attrs.
+        self._writes: Dict[str, Any] = {}
+
+    def __setitem__(self, key, value):
+        super().__setitem__(key, value)
+        self._writes[key] = value
+
+    def update(self, *args, **kwargs):  # type: ignore[override]
+        super().update(*args, **kwargs)
+        self._writes.update(dict(*args, **kwargs))
+
+    def setdefault(self, key, default=None):
+        existed = key in self
+        result = super().setdefault(key, default)
+        if not existed:
+            self._writes[key] = result
+        return result
 
 
 def is_async_callable(func):
@@ -81,6 +110,15 @@ class Executor:
             assert isinstance(self.func, Callable)
             func = self.func
 
+        # Wrap only the env_variable kwarg (a VariableMemoryModule source) in a
+        # TrackedDict so writes performed by the callable are captured and synced
+        # back to the server after the call returns. No other kwarg is tracked.
+        tracked: Optional[TrackedDict] = None
+        value = kwargs.get(TRACKED_MEMORY_SOURCE)
+        if isinstance(value, dict) and not isinstance(value, TrackedDict):
+            tracked = TrackedDict(value)
+            kwargs[TRACKED_MEMORY_SOURCE] = tracked
+
         # Execute the function in ThreadPoolExecutor regardless of sync or async.
         logger.debug("Executing function in ThreadPoolExecutor.")
         loop = asyncio.get_running_loop()
@@ -103,8 +141,18 @@ class Executor:
         # Process the result
         res_content = str(result) if self.return_string else result
 
-        # Send the result to send_queue
-        request_args = DistillerMessageRequestArgs(content=res_content)
+        # Collect any writes captured by the tracked dict, keyed by the source name.
+        memory_updates = (
+            {TRACKED_MEMORY_SOURCE: tracked._writes}
+            if tracked is not None and tracked._writes
+            else None
+        )
+
+        # Send the result to send_queue, including any memory updates the callable made.
+        request_args = DistillerMessageRequestArgs(
+            content=res_content,
+            memory_updates=memory_updates,
+        )
         request = DistillerOutgoingMessage(
             account=self.account,
             project=self.project,
